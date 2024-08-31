@@ -32,7 +32,7 @@
 </script>
 
 <div class="custom">
-  <Handle type="target" position={Position.Left} />
+  <Handle type="target" position={Position.Left} class="big-handle"/>
   <div class="type-selector">
     <select on:change={changeNodeType} value="result">
       <option value="text">Text</option>

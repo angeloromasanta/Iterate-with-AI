@@ -38,7 +38,7 @@
 </script>
 
 <div class="custom">
-  <Handle type="target" position={Position.Left} />
+  <Handle type="target" position={Position.Left} class="big-handle" />
   <div class="type-selector">
     <select on:change={changeNodeType} value={data.nodeType || 'text'}>
       <option value="text">Text</option>
@@ -74,7 +74,7 @@
     </div>
   {/if}
   <button class="delete-button" on:click={deleteNode}>Delete</button>
-  <Handle type="source" position={Position.Right} />
+  <Handle type="source" position={Position.Right}  class="big-handle"/>
 </div>
 
 <style>
@@ -146,4 +146,6 @@
     font-size: 12px;
     cursor: pointer;
   }
+
+  
 </style>

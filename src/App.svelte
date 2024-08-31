@@ -7,6 +7,7 @@
     Background,
     BackgroundVariant,
     MiniMap,
+    MarkerType,
     type Node,
     type NodeTypes,
     type Edge
@@ -15,6 +16,16 @@
   import { getLLMResponse } from './api';
   import TextNode from './TextNode.svelte';
   import ResultNode from './ResultNode.svelte';
+
+  const defaultEdgeOptions = {
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    width: 15,
+    height: 15,
+    color: '#000000'
+  },
+  style: 'stroke-width: 2px; stroke: #00000',
+};
 
   const nodeTypes: NodeTypes = {
     text: TextNode,
@@ -235,6 +246,8 @@ async function onBigButtonClick() {
 
     return stack.reverse().map(id => nodes.find(node => node.id === id));
   }
+
+  
 </script>
 
 
@@ -243,6 +256,7 @@ async function onBigButtonClick() {
     {nodes}
     {edges}
     {nodeTypes}
+    {defaultEdgeOptions}
     fitView
     on:paneclick={onPaneClick}
   >
@@ -332,7 +346,7 @@ async function onBigButtonClick() {
 }
 
 :global(.processing.referenced) {
-  box-shadow: 0 0 0 2px rgba(0, 0, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(198, 198, 231, 0.5);
 }
 
 :global(.processing-edge) {
@@ -343,5 +357,16 @@ async function onBigButtonClick() {
 :global(.processing-edge path) {
   stroke: blue !important;
 }
+:global(.big-handle) {
+    width: 12px !important;
+    height: 12px !important;
+    background-color: rgb(0, 0, 0) !important;
+    border: 2px solid rgb(255, 255, 255) !important;
+  }
+
+  :global(.big-handle:hover) {
+    background-color: #5e3bc0 !important;
+    box-shadow: 0 0 0 2px #5e3bc0 !important;
+  }
 
 </style>
