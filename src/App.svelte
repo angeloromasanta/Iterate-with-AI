@@ -1,3 +1,4 @@
+<!-- App.svelte -->
 <script lang="ts">
   import { writable } from 'svelte/store';
   import {

@@ -1,3 +1,4 @@
+<!-- TextNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
 

@@ -1,4 +1,4 @@
-
+<!-- ResultNode.svelte -->
 <script lang="ts">
   import {
     Handle,
