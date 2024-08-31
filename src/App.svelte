@@ -226,6 +226,7 @@
   }
 </script>
 
+
 <main>
   <SvelteFlow
     {nodes}
@@ -246,11 +247,23 @@
 </main>
 
 <style>
+  :global(body) {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :global(*) {
+    box-sizing: inherit;
+  }
+
   main {
     height: 100vh;
     width: 100vw;
     position: relative;
+    overflow: hidden; /* Add this line */
   }
+
 
   .custom-controls {
     position: absolute;
@@ -260,20 +273,30 @@
   }
 
   .custom-button {
-    background-color: #fff;
-    border: 2px solid #eee;
-    border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    font-size: 30px;
-    padding: 5px 5px 10px 5px;
+    background-color: #f0f0f0;
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
+    font-size: 24px;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.3s ease;
     cursor: pointer;
+    outline: none;
   }
 
   .custom-button:hover {
-    background-color: #f0f0f0;
-    transform: translateY(-5px);
-    box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+    background-color: #e0e0e0;
+    transform: translateY(-2px);
+    box-shadow: 0 7px 14px rgba(0,0,0,0.1), 0 3px 6px rgba(0,0,0,0.08);
+  }
+
+  .custom-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 3px 4px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.08);
   }
 
   .custom-button.processing {
@@ -282,18 +305,15 @@
 
   @keyframes pulse {
     0% {
-      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
     }
-    50% {
-      transform: scale(1.1);
+    70% {
+      box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
     }
     100% {
-      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
     }
   }
-  :global(.processing) {
-  border: 2px solid blue !important;
-}
 
 :global(.processing.referenced) {
   border: 2px solid blue !important;
