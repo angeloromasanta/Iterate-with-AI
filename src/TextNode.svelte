@@ -25,8 +25,8 @@
   }
 
   function changeNodeType(event) {
-    updateNode(id, { data: { ...data, nodeType: event.target.value } });
-  }
+  updateNode(id, { type: event.target.value });
+}
 
   function onTextareaMouseDown(event: MouseEvent) {
     event.stopPropagation();

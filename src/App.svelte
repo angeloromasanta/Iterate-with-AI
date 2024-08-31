@@ -66,17 +66,17 @@
   let processing = false;
 
   function onPaneClick(event) {
-    const newNode = {
-      id: getId(),
-      type: 'text',
-      position: { x: 0, y: 0 },
-      data: { label: `Text Node ${id}`, text: 'Insert prompt here.' }
-    };
+  const newNode = {
+    id: getId(),
+    type: 'text',
+    position: { x: 0, y: 0 },
+    data: { label: `Node ${id}`, text: 'Insert prompt here.' }
+  };
 
-    nodes.update(n => [...n, newNode]);
-  }
+  nodes.update(n => [...n, newNode]);
+}
 
-  async function onBigButtonClick() {
+async function onBigButtonClick() {
   processing = true;
   let allNodes = $nodes;
   let allEdges = $edges;
@@ -117,8 +117,8 @@
             referencedNodes.push(referencedNode);
             if (referencedNode.type === 'result' && referencedNode.data.results) {
               return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-  ? referencedNode.data.results[referencedNode.data.results.length - 1]
-  : match;
+                ? referencedNode.data.results[referencedNode.data.results.length - 1]
+                : match;
             } else if (referencedNode.type === 'text') {
               return referencedNode.data.text || match;
             }
@@ -137,12 +137,18 @@
         // Animate connected edges
         allEdges = allEdges.map(edge => ({
           ...edge,
-          animated: edge.source === node.id,
-          class: edge.source === node.id ? 'processing-edge' : edge.class
+          animated: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target),
+          class: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target) 
+            ? 'processing-edge' 
+            : edge.class
         }));
         edges.set(allEdges);
 
+        // Update nodes to trigger re-render
         nodes.set(allNodes);
+
+        // Delay to allow for visual update
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         const response = await getLLMResponse(processedText);
 
@@ -168,9 +174,10 @@
       // Remove processing class from current node, connected result nodes, and referenced nodes
       allNodes = allNodes.map(n => ({
         ...n,
-        class: (n.id === node.id || connectedResultNodes.some(rn => rn.id === n.id) || referencedNodes.some(rn => rn.id === n.id))
-          ? (n.class || '').replace('processing', '').replace('referenced', '').trim()
-          : n.class
+        class: (n.class || '')
+          .replace('processing', '')
+          .replace('referenced', '')
+          .trim()
       }));
       nodes.set(allNodes);
 
@@ -181,6 +188,9 @@
         class: (edge.class || '').replace('processing-edge', '').trim()
       }));
       edges.set(allEdges);
+
+      // Delay to allow for visual update
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
@@ -317,9 +327,12 @@
       box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
     }
   }
+  :global(.processing) {
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
+}
 
 :global(.processing.referenced) {
-  border: 2px solid blue !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 255, 0.5);
 }
 
 :global(.processing-edge) {

@@ -23,8 +23,8 @@
   }
 
   function changeNodeType(event) {
-    updateNode(id, { type: event.target.value });
-  }
+  updateNode(id, { type: event.target.value });
+}
 
   function deleteNode() {
     deleteElements({ nodes: [{ id }] });
