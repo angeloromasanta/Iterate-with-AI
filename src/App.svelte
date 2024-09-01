@@ -80,68 +80,130 @@ function onConnect(params: any) {
 $: console.log('Current edges:', $edges);
 
 
-
 let nodes = writable<Node[]>([
   {
     id: '1',
     type: 'text',
-    data: { label: 'Text Node 1', text: 'Name the capital of Spain' },
-    position: { x: -100, y: -50 }
+    data: { 
+      label: 'Generate Ideas', 
+      text: 'Generate 5 novel and impactful management research ideas. For each idea, provide a brief description, potential research questions, and expected outcomes. Number each idea from 1 to 5.'
+    },
+    position: { x: 0, y: 0 }
   },
   {
     id: '2',
     type: 'result',
-    data: { label: 'Result Node 1', text: 'Madrid' },
-    position: { x: 100, y: -50 }
+    data: { label: 'Research Ideas', text: 'Generated research ideas will appear here' },
+    position: { x: 250, y: 0 }
   },
   {
     id: '3',
     type: 'text',
-    data: { label: 'Text Node 2', text: 'Paris' },
-    position: { x: -100, y: 50 }
+    data: { 
+      label: 'Evaluate Ideas', 
+      text: 'Evaluate the 5 research ideas in {Research Ideas}. For each idea, provide a score from 1-10 on novelty, feasibility, and potential impact. Briefly justify each score. Then, recommend the best idea to pursue based on these evaluations.'
+    },
+    position: { x: 0, y: 150 }
   },
   {
     id: '4',
-    type: 'text',
-    data: { label: 'Text Node 3', text: 'Write a poem about {Result Node 1} and {Text Node 2}' },
-    position: { x: 300, y: 0 }
+    type: 'result',
+    data: { label: 'Idea Evaluation', text: 'Idea evaluations and recommendation will appear here' },
+    position: { x: 250, y: 150 }
   },
   {
     id: '5',
-    type: 'result',
-    data: { label: 'Result Node 2', text: 'Poem about Paris and Madrid' },
-    position: { x: 500, y: 0 }
+    type: 'text',
+    data: { 
+      label: 'Literature Review', 
+      text: 'Based on the recommended idea in {Idea Evaluation}, conduct a hypothetical literature review. Identify key theories, seminal papers, and recent developments in the field related to the research idea. Summarize the main findings and highlight the research gap your idea addresses.'
+    },
+    position: { x: 0, y: 300 }
   },
   {
     id: '6',
-    type: 'text',
-    data: { label: 'Text Node 4', text: 'Suggest ways to improve {Result Node 2}' },
-    position: { x: 700, y: 0 }
+    type: 'result',
+    data: { label: 'Literature Summary', text: 'Literature review summary will appear here' },
+    position: { x: 250, y: 300 }
   },
   {
     id: '7',
-    type: 'result',
-    data: { label: 'Result Node 3', text: 'Suggestions' },
-    position: { x: 900, y: 0 }
+    type: 'text',
+    data: { 
+      label: 'Paper Structure', 
+      text: 'Create an outline for a management research paper based on the recommended idea from {Idea Evaluation} and the literature review {Literature Summary}. Include standard sections such as Introduction, Literature Review, Methodology, Results, Discussion, and Conclusion. Provide brief descriptions of what each section should contain.'
+    },
+    position: { x: 0, y: 450 }
   },
   {
     id: '8',
+    type: 'result',
+    data: { label: 'Paper Outline', text: 'Paper outline will appear here' },
+    position: { x: 250, y: 450 }
+  },
+  {
+    id: '9',
     type: 'text',
-    data: { label: 'Text Node 5', text: 'Improve {Result Node 2} based on these suggestions {Result Node 3}' },
-    position: { x: 700, y: 100 }
+    data: { 
+      label: 'Write Introduction', 
+      text: 'Write the Introduction section of the management research paper based on the recommended idea from {Idea Evaluation}, {Literature Summary}, and {Paper Outline}. Use academic language, cite relevant literature, and ensure coherence with the overall paper structure. Focus on introducing the research problem, stating the purpose of the study, and outlining its significance.'
+    },
+    position: { x: 0, y: 600 }
+  },
+  {
+    id: '10',
+    type: 'result',
+    data: { label: 'Introduction Draft', text: 'Introduction draft will appear here' },
+    position: { x: 250, y: 600 }
+  },
+  {
+    id: '11',
+    type: 'text',
+    data: { 
+      label: 'Refinement', 
+      text: 'Review the entire paper draft, including the recommended idea from {Idea Evaluation}, {Literature Summary}, {Paper Outline}, and {Introduction Draft}. Identify areas for improvement in terms of clarity, coherence, and academic rigor. Suggest specific edits or additions to strengthen the paper\'s arguments and contributions to management theory and practice.'
+    },
+    position: { x: 0, y: 750 }
+  },
+  {
+    id: '12',
+    type: 'result',
+    data: { label: 'Refined Paper', text: 'Refined paper draft will appear here' },
+    position: { x: 250, y: 750 }
+  },
+  {
+    id: '13',
+    type: 'text',
+    data: { 
+      label: 'Final Review', 
+      text: 'Conduct a final review of the management paper {Refined Paper}. Evaluate its overall quality, potential impact, and suitability for publication in a management journal. Provide a summary of strengths and areas for future development.'
+    },
+    position: { x: 0, y: 900 }
+  },
+  {
+    id: '14',
+    type: 'result',
+    data: { label: 'Final Assessment', text: 'Final paper assessment will appear here' },
+    position: { x: 250, y: 900 }
   }
 ]);
 
 let edges = writable<Edge[]>([
   createEdge({ id: 'e1-2', source: '1', target: '2' }),
-  createEdge({ id: 'e2-4', source: '2', target: '4' }),
+  createEdge({ id: 'e2-3', source: '2', target: '3' }),
   createEdge({ id: 'e3-4', source: '3', target: '4' }),
   createEdge({ id: 'e4-5', source: '4', target: '5' }),
   createEdge({ id: 'e5-6', source: '5', target: '6' }),
   createEdge({ id: 'e6-7', source: '6', target: '7' }),
   createEdge({ id: 'e7-8', source: '7', target: '8' }),
-  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }) // Iteration edge
+  createEdge({ id: 'e8-9', source: '8', target: '9' }),
+  createEdge({ id: 'e9-10', source: '9', target: '10' }),
+  createEdge({ id: 'e10-11', source: '10', target: '11' }),
+  createEdge({ id: 'e11-12', source: '11', target: '12' }),
+  createEdge({ id: 'e12-13', source: '12', target: '13' }),
+  createEdge({ id: 'e13-14', source: '13', target: '14' })
 ]);
+
 
   async function runConnectedNodes(edgeId) {
     const edge = $edges.find(e => e.id === edgeId);
