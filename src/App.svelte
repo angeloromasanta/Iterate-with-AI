@@ -77,18 +77,25 @@
 
 
   function createEdge(params: any) {
-  const edgeId = params.id || `e${params.source}-${params.target}`;
-  return {
-    ...params,
-    id: edgeId,
-    type: 'custom',
-    markerEnd: defaultEdgeOptions.markerEnd,
-    style: defaultEdgeOptions.style,
-    data: { 
-      onPlay: () => runConnectedNodes(edgeId) // Ensure onPlay is assigned
-    }
-  };
-}
+    const edgeId = params.id || `e${params.source}-${params.target}`;
+    return {
+      ...params,
+      id: edgeId,
+      type: 'custom',
+      markerEnd: defaultEdgeOptions.markerEnd,
+      style: defaultEdgeOptions.style,
+      data: { 
+        onPlay: () => runConnectedNodes(edgeId),
+        onDelete: (id: string) => deleteEdge(id) // Add this line
+      }
+    };
+  }
+
+  // Add this function to delete an edge
+  function deleteEdge(id: string) {
+    edges.update(e => e.filter(edge => edge.id !== id));
+  }
+
 
 function onConnect(params: any) {
     edges.update(eds => {
@@ -217,17 +224,19 @@ $: console.log('Current edges:', $edges);
   
 
   function forceEdgeUpdate() {
-    edges.update(currentEdges => {
-      return currentEdges.map(edge => ({
-        ...edge,
-        type: 'custom',
-        data: {
-          ...edge.data,
-          onPlay: () => runConnectedNodes(edge.id)
-        }
-      }));
-    });
-  }
+  edges.update(currentEdges => {
+    return currentEdges.map(edge => ({
+      ...edge,
+      type: 'custom',
+      animated: edge.animated || false, // Add this line
+      data: {
+        ...edge.data,
+        onPlay: () => runConnectedNodes(edge.id),
+        onDelete: (id: string) => deleteEdge(id)
+      }
+    }));
+  });
+}
 
   // Call forceEdgeUpdate periodically
   setInterval(forceEdgeUpdate, 2000);
@@ -294,11 +303,11 @@ async function onBigButtonClick() {
 
         // Animate connected edges
         allEdges = allEdges.map(edge => ({
-          ...edge,
-          animated: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target),
-          class: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target) 
-            ? 'processing-edge' 
-            : edge.class
+  ...edge,
+  animated: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target),
+  class: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target) 
+    ? 'processing-edge' 
+    : edge.class
         }));
         edges.set(allEdges);
 

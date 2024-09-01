@@ -1,109 +1,97 @@
 <!-- CustomEdge.svelte -->
 <script lang="ts">
-    import { getBezierPath } from '@xyflow/svelte';
-    import type { EdgeProps } from '@xyflow/svelte';
-  
-    import { onMount } from 'svelte';
+  import { getBezierPath } from '@xyflow/svelte';
+  import { onMount } from 'svelte';
 
-onMount(() => {
-  console.log(`Edge ${id} mounted`);
-});
+  export let id;
+  export let sourceX;
+  export let sourceY;
+  export let targetX;
+  export let targetY;
+  export let sourcePosition;
+  export let targetPosition;
+  export let style = '';
+  export let markerEnd;
+  export let data;
 
-$: console.log(`Edge ${id} isHovered: ${isHovered}`);
+  $: [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
 
-    type CustomEdgeProps = EdgeProps & {
-      data: {
-        onPlay: (id: string) => void;
-      };
-    };
-  
-    export let id: CustomEdgeProps['id'];
-    export let sourceX: CustomEdgeProps['sourceX'];
-    export let sourceY: CustomEdgeProps['sourceY'];
-    export let targetX: CustomEdgeProps['targetX'];
-    export let targetY: CustomEdgeProps['targetY'];
-    export let sourcePosition: CustomEdgeProps['sourcePosition'];
-    export let targetPosition: CustomEdgeProps['targetPosition'];
-    export let style: CustomEdgeProps['style'] = {};
-    export let markerEnd: CustomEdgeProps['markerEnd'];
-    export let data: CustomEdgeProps['data'];
-  
-    let isHovered = false;
-  
-    $: [edgePath, labelX, labelY] = getBezierPath({
-      sourceX,
-      sourceY,
-      sourcePosition,
-      targetX,
-      targetY,
-      targetPosition,
-    });
-  
-    
-    function onPlayClick(event: MouseEvent) {
-    event.stopPropagation();
-    console.log('Play clicked for edge:', id, 'Data:', data);
-    if (data && typeof data.onPlay === 'function') {
-      data.onPlay(id);
-    } else {
-      console.error(`onPlay function not found for edge ${id}`, data);
-    }
-  }
+  let isHovered = false;
+  let hideTimeout;
 
-  
-    function onMouseEnter() {
-    console.log(`Edge ${id} mouse enter`);
+  function showButtons() {
     isHovered = true;
+    clearTimeout(hideTimeout);
   }
 
-  function onMouseLeave() {
-    console.log(`Edge ${id} mouse leave`);
-    isHovered = false;
+  function hideButtons() {
+    hideTimeout = setTimeout(() => {
+      isHovered = false;
+    }, 1500); // Keep buttons visible for 1.5 seconds after mouse leaves
   }
 
+  let isAnimated = false;
 
-  
-  </script>
-  
-  <g on:mouseenter={onMouseEnter} on:mouseleave={onMouseLeave}>
-    <path 
-      id={id} 
-      style={style} 
-      class="react-flow__edge-path" 
-      d={edgePath} 
-      marker-end={markerEnd}
-    />
-    {#if isHovered}
-      <foreignObject
-        width={30}
-        height={30}
-        x={labelX - 15}
-        y={labelY - 15}
-        requiredExtensions="http://www.w3.org/1999/xhtml"
-      >
-        <button class="play-button" on:click={onPlayClick}>▶</button>
-      </foreignObject>
-    {/if}
-  </g>
-  
-  <style>
-    .play-button {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background-color: #544caf;
-      color: white;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      cursor: pointer;
-      transition: background-color 0.3s;
+  function onPlay() {
+    if (data && typeof data.onPlay === 'function') {
+      data.onPlay();
     }
-  
-    .play-button:hover {
-      background-color: #5445a0;
+    isAnimated = true;
+    setTimeout(() => {
+      isAnimated = false;
+    }, 2000); // Stop animation after 2 seconds
+  }
+
+  function onDelete() {
+    if (data && typeof data.onDelete === 'function') {
+      data.onDelete(id);
     }
-  </style>
-  
+  }
+
+  onMount(() => {
+    return () => {
+      clearTimeout(hideTimeout);
+    };
+  });
+</script>
+
+<g on:mouseenter={showButtons} on:mouseleave={hideButtons}>
+  <path
+    {id}
+    style={style}
+    class="react-flow__edge-path"
+    d={edgePath}
+    marker-end={markerEnd}
+  />
+
+  {#if isHovered}
+    <g transform={`translate(${(sourceX + targetX) / 2 - 40}, ${(sourceY + targetY) / 2 - 20})`}>
+      <rect x="0" y="0" width="80" height="40" rx="5" ry="5" fill="white" stroke="black" />
+      
+      <!-- Play button -->
+      <g on:click|stopPropagation={onPlay} style="cursor: pointer;">
+        <rect x="5" y="5" width="30" height="30" rx="3" ry="3" fill="#4CAF50" />
+        <path d="M15 10l15 10-15 10V10z" fill="white" />
+      </g>
+      
+      <!-- Delete button -->
+      <g on:click|stopPropagation={onDelete} style="cursor: pointer;">
+        <rect x="45" y="5" width="30" height="30" rx="3" ry="3" fill="#F44336" />
+        <path d="M52 13l16 16M68 13l-16 16" stroke="white" stroke-width="2" />
+      </g>
+    </g>
+  {/if}
+</g>
+
+<style>
+  g {
+    pointer-events: all;
+  }
+</style>
