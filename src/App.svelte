@@ -10,27 +10,37 @@
     MarkerType,
     type Node,
     type NodeTypes,
-    type Edge
+    type Edge,
+    type EdgeTypes
   } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { getLLMResponse } from './api';
   import TextNode from './TextNode.svelte';
   import ResultNode from './ResultNode.svelte';
+  import CustomEdge from './CustomEdge.svelte';
+
+
 
   const defaultEdgeOptions = {
-  markerEnd: {
-    type: MarkerType.ArrowClosed,
-    width: 15,
-    height: 15,
-    color: '#000000'
-  },
-  style: 'stroke-width: 2px; stroke: #00000',
-};
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      width: 15,
+      height: 15,
+      color: '#000000'
+    },
+    style: 'stroke-width: 2px; stroke: #000000; fill: none;', // Add 'fill: none;'
+    type: 'custom',
+  };
 
   const nodeTypes: NodeTypes = {
     text: TextNode,
     result: ResultNode
   };
+
+  const edgeTypes: EdgeTypes = {
+    custom: CustomEdge as any // Use type assertion here
+  };
+
 
   let nodes = writable<Node[]>([
     {
@@ -65,27 +75,164 @@
     }
   ]);
 
+
+  function createEdge(params: any) {
+  const edgeId = params.id || `e${params.source}-${params.target}`;
+  return {
+    ...params,
+    id: edgeId,
+    type: 'custom',
+    markerEnd: defaultEdgeOptions.markerEnd,
+    style: defaultEdgeOptions.style,
+    data: { 
+      onPlay: () => runConnectedNodes(edgeId) // Ensure onPlay is assigned
+    }
+  };
+}
+
+function onConnect(params: any) {
+    edges.update(eds => {
+      const newEdge = createEdge(params);
+      console.log('New edge added:', newEdge);
+      return [...eds, newEdge];
+    });
+
+    // Force update all edges after a short delay
+    setTimeout(forceEdgeUpdate, 100);
+  }
+
+
+$: console.log('Current edges:', $edges);
+
+
+
+
   let edges = writable<Edge[]>([
-    { id: 'e1-2', source: '1', target: '2' },
-    { id: 'e2-4', source: '2', target: '4' },
-    { id: 'e3-4', source: '3', target: '4' },
-    { id: 'e4-5', source: '4', target: '5' },
+    createEdge({ id: 'e1-2', source: '1', target: '2' }),
+    createEdge({ id: 'e2-4', source: '2', target: '4' }),
+    createEdge({ id: 'e3-4', source: '3', target: '4' }),
+    createEdge({ id: 'e4-5', source: '4', target: '5' }),
   ]);
+
+
+  async function runConnectedNodes(edgeId) {
+    const edge = $edges.find(e => e.id === edgeId);
+    if (!edge) return;
+
+    const sourceNode = $nodes.find(n => n.id === edge.source);
+    const targetNode = $nodes.find(n => n.id === edge.target);
+
+    if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
+      processing = true;
+
+      // Process the source node
+      let processedText = sourceNode.data.text;
+      const referencedNodes = [];
+
+      // Replace references with actual values and collect referenced nodes
+      const regex = /{([^}]+)}/g;
+      processedText = processedText.replace(regex, (match, label) => {
+        const referencedNode = $nodes.find(n => n.data.label === label);
+        if (referencedNode) {
+          referencedNodes.push(referencedNode);
+          if (referencedNode.type === 'result' && referencedNode.data.results) {
+            return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
+              ? referencedNode.data.results[referencedNode.data.results.length - 1]
+              : match;
+          } else if (referencedNode.type === 'text') {
+            return referencedNode.data.text || match;
+          }
+        }
+        return match;
+      });
+
+      // Update node classes
+      nodes.update(n => n.map(node => ({
+        ...node,
+        class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
+          ? `${node.class || ''} processing`.trim()
+          : node.class
+      })));
+
+      // Animate the edge
+      edges.update(e => e.map(edge => ({
+        ...edge,
+        animated: edge.id === edgeId,
+        class: edge.id === edgeId ? 'processing-edge' : edge.class
+      })));
+
+      // Delay to allow for visual update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const response = await getLLMResponse(processedText);
+
+      // Update the target node with the response
+      nodes.update(n => n.map(node => {
+        if (node.id === targetNode.id) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              results: [...(node.data.results || []), response]
+            }
+          };
+        }
+        return node;
+      }));
+
+      // Reset processing classes and animations
+      nodes.update(n => n.map(node => ({
+        ...node,
+        class: (node.class || '').replace('processing', '').trim()
+      })));
+
+      edges.update(e => e.map(edge => ({
+        ...edge,
+        animated: false,
+        class: (edge.class || '').replace('processing-edge', '').trim()
+      })));
+
+      processing = false;
+    }
+  }
+
 
   let id = 6;
   const getId = () => `${id++}`;
   let processing = false;
 
-  function onPaneClick(event) {
-  const newNode = {
-    id: getId(),
-    type: 'text',
-    position: { x: 0, y: 0 },
-    data: { label: `Node ${id}`, text: 'Insert prompt here.' }
-  };
 
-  nodes.update(n => [...n, newNode]);
-}
+  function onPaneClick(event) {
+    const newNode = {
+      id: getId(),
+      type: 'text',
+      position: { x: 0, y: 0 },
+      data: { label: `Node ${id}`, text: 'Insert prompt here.' }
+    };
+
+    nodes.update(n => [...n, newNode]);
+
+
+  }
+  
+
+  function forceEdgeUpdate() {
+    edges.update(currentEdges => {
+      return currentEdges.map(edge => ({
+        ...edge,
+        type: 'custom',
+        data: {
+          ...edge.data,
+          onPlay: () => runConnectedNodes(edge.id)
+        }
+      }));
+    });
+  }
+
+  // Call forceEdgeUpdate periodically
+  setInterval(forceEdgeUpdate, 2000);
+
+
 
 async function onBigButtonClick() {
   processing = true;
@@ -253,13 +400,15 @@ async function onBigButtonClick() {
 
 <main>
   <SvelteFlow
-    {nodes}
-    {edges}
-    {nodeTypes}
-    {defaultEdgeOptions}
-    fitView
-    on:paneclick={onPaneClick}
-  >
+  {nodes}
+  {edges}
+  {nodeTypes}
+  {edgeTypes}
+  {defaultEdgeOptions}
+  fitView
+  on:paneclick={onPaneClick}
+  on:connect={({ detail }) => onConnect(detail)}
+>
     <Controls />
     <Background variant={BackgroundVariant.Dots} />
     
@@ -272,7 +421,7 @@ async function onBigButtonClick() {
 </main>
 
 <style>
-  :global(body) {
+ :global(body) {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -290,6 +439,9 @@ async function onBigButtonClick() {
     position: relative;
     overflow: hidden; /* Add this line */
   }
+
+
+
 
 
   .custom-controls {

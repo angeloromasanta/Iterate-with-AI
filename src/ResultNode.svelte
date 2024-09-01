@@ -57,7 +57,7 @@
     {/if}
   </div>
   <button class="delete-button" on:click={deleteNode}>Delete</button>
-  <Handle type="source" position={Position.Right} />
+  <Handle type="source" position={Position.Right} class="big-handle"/>
 </div>
 
 <style>
