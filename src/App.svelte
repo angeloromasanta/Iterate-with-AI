@@ -42,38 +42,6 @@
   };
 
 
-  let nodes = writable<Node[]>([
-    {
-      id: '1',
-      type: 'text',
-      data: { label: 'Text Node 1', text: 'What is the capital of France?' },
-      position: { x: -100, y: -50 }
-    },
-    {
-      id: '2',
-      type: 'result',
-      data: { label: 'Result Node 1' },
-      position: { x: 300, y: -50 }
-    },
-    {
-      id: '3',
-      type: 'text',
-      data: { label: 'Text Node 2', text: 'Berlin' },
-      position: { x: -100, y: 100 }
-    },
-    {
-      id: '4',
-      type: 'text',
-      data: { label: 'Text Node 3', text: 'Which is bigger {Result Node 1} or {Text Node 2}' },
-      position: { x: 300, y: 100 }
-    },
-    {
-      id: '5',
-      type: 'result',
-      data: { label: 'Result Node 2' },
-      position: { x: 700, y: 100 }
-    }
-  ]);
 
 
   function createEdge(params: any) {
@@ -113,14 +81,67 @@ $: console.log('Current edges:', $edges);
 
 
 
+let nodes = writable<Node[]>([
+  {
+    id: '1',
+    type: 'text',
+    data: { label: 'Text Node 1', text: 'Name the capital of Spain' },
+    position: { x: -100, y: -50 }
+  },
+  {
+    id: '2',
+    type: 'result',
+    data: { label: 'Result Node 1', text: 'Madrid' },
+    position: { x: 100, y: -50 }
+  },
+  {
+    id: '3',
+    type: 'text',
+    data: { label: 'Text Node 2', text: 'Paris' },
+    position: { x: -100, y: 50 }
+  },
+  {
+    id: '4',
+    type: 'text',
+    data: { label: 'Text Node 3', text: 'Write a poem about {Result Node 1} and {Text Node 2}' },
+    position: { x: 300, y: 0 }
+  },
+  {
+    id: '5',
+    type: 'result',
+    data: { label: 'Result Node 2', text: 'Poem about Paris and Madrid' },
+    position: { x: 500, y: 0 }
+  },
+  {
+    id: '6',
+    type: 'text',
+    data: { label: 'Text Node 4', text: 'Suggest ways to improve {Result Node 2}' },
+    position: { x: 700, y: 0 }
+  },
+  {
+    id: '7',
+    type: 'result',
+    data: { label: 'Result Node 3', text: 'Suggestions' },
+    position: { x: 900, y: 0 }
+  },
+  {
+    id: '8',
+    type: 'text',
+    data: { label: 'Text Node 5', text: 'Improve {Result Node 2} based on these suggestions {Result Node 3}' },
+    position: { x: 700, y: 100 }
+  }
+]);
 
-  let edges = writable<Edge[]>([
-    createEdge({ id: 'e1-2', source: '1', target: '2' }),
-    createEdge({ id: 'e2-4', source: '2', target: '4' }),
-    createEdge({ id: 'e3-4', source: '3', target: '4' }),
-    createEdge({ id: 'e4-5', source: '4', target: '5' }),
-  ]);
-
+let edges = writable<Edge[]>([
+  createEdge({ id: 'e1-2', source: '1', target: '2' }),
+  createEdge({ id: 'e2-4', source: '2', target: '4' }),
+  createEdge({ id: 'e3-4', source: '3', target: '4' }),
+  createEdge({ id: 'e4-5', source: '4', target: '5' }),
+  createEdge({ id: 'e5-6', source: '5', target: '6' }),
+  createEdge({ id: 'e6-7', source: '6', target: '7' }),
+  createEdge({ id: 'e7-8', source: '7', target: '8' }),
+  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }) // Iteration edge
+]);
 
   async function runConnectedNodes(edgeId) {
     const edge = $edges.find(e => e.id === edgeId);
@@ -204,7 +225,7 @@ $: console.log('Current edges:', $edges);
   }
 
 
-  let id = 6;
+  let id = 10;
   const getId = () => `${id++}`;
   let processing = false;
 
