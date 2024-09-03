@@ -14,6 +14,21 @@
   export let markerEnd;
   export let data;
 
+  // Add these new props
+  export let source;
+  export let target;
+  export let animated = false;
+  export let selected = false;
+  export let label = '';
+  export let labelStyle = '';
+  export let interactionWidth = 20;
+  export let selectable = true;
+  export let deletable = true;
+  export let type = 'default';
+  export let sourceHandleId = null;
+  export let targetHandleId = null;
+  export let markerStart = null;
+
   $: [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,

@@ -45,19 +45,21 @@
 
 
   function createEdge(params: any) {
-    const edgeId = params.id || `e${params.source}-${params.target}`;
-    return {
-      ...params,
-      id: edgeId,
-      type: 'custom',
-      markerEnd: defaultEdgeOptions.markerEnd,
-      style: defaultEdgeOptions.style,
-      data: { 
-        onPlay: () => runConnectedNodes(edgeId),
-        onDelete: (id: string) => deleteEdge(id) // Add this line
-      }
-    };
-  }
+  const edgeId = params.id || `e${params.source}-${params.target}`;
+  return {
+    ...params,
+    id: edgeId,
+    type: 'custom',
+    markerEnd: defaultEdgeOptions.markerEnd,
+    style: defaultEdgeOptions.style,
+    animated: false,
+    selected: false,
+    data: { 
+      onPlay: () => runConnectedNodes(edgeId),
+      onDelete: (id: string) => deleteEdge(id)
+    }
+  };
+}
 
   // Add this function to delete an edge
   function deleteEdge(id: string) {
@@ -65,226 +67,165 @@
   }
 
 
-function onConnect(params: any) {
-    edges.update(eds => {
-      const newEdge = createEdge(params);
-      console.log('New edge added:', newEdge);
-      return [...eds, newEdge];
+  function onConnect(params: any) {
+  edges.update(eds => {
+    const newEdge = createEdge({
+      id: `e${params.source}-${params.target}`,
+      source: params.source,
+      target: params.target
     });
+    console.log('New edge added:', newEdge);
+    return [...eds, newEdge];
+  });
 
-    // Force update all edges after a short delay
-    setTimeout(forceEdgeUpdate, 100);
-  }
+  // Force update all edges after a short delay
+  setTimeout(forceEdgeUpdate, 100);
+}
 
 
-$: console.log('Current edges:', $edges);
-
-
-let nodes = writable<Node[]>([
+  let nodes = writable<Node[]>([
   {
     id: '1',
     type: 'text',
-    data: { 
-      label: 'Generate Ideas', 
-      text: 'Generate 5 novel and impactful management research ideas. For each idea, provide a brief description, potential research questions, and expected outcomes. Number each idea from 1 to 5.'
-    },
-    position: { x: 0, y: 0 }
+    data: { label: 'Text Node 1', text: 'Name the capital of Spain' },
+    position: { x: -100, y: -50 }
   },
   {
     id: '2',
     type: 'result',
-    data: { label: 'Research Ideas', text: 'Generated research ideas will appear here' },
-    position: { x: 250, y: 0 }
+    data: { label: 'Result Node 1', text: 'Madrid' },
+    position: { x: 100, y: -50 }
   },
   {
     id: '3',
     type: 'text',
-    data: { 
-      label: 'Evaluate Ideas', 
-      text: 'Evaluate the 5 research ideas in {Research Ideas}. For each idea, provide a score from 1-10 on novelty, feasibility, and potential impact. Briefly justify each score. Then, recommend the best idea to pursue based on these evaluations.'
-    },
-    position: { x: 0, y: 150 }
+    data: { label: 'Text Node 2', text: 'Paris' },
+    position: { x: -100, y: 50 }
   },
   {
     id: '4',
-    type: 'result',
-    data: { label: 'Idea Evaluation', text: 'Idea evaluations and recommendation will appear here' },
-    position: { x: 250, y: 150 }
+    type: 'text',
+    data: { label: 'Text Node 3', text: 'Write a poem about {Result Node 1} and {Text Node 2}' },
+    position: { x: 300, y: 0 }
   },
   {
     id: '5',
-    type: 'text',
-    data: { 
-      label: 'Literature Review', 
-      text: 'Based on the recommended idea in {Idea Evaluation}, conduct a hypothetical literature review. Identify key theories, seminal papers, and recent developments in the field related to the research idea. Summarize the main findings and highlight the research gap your idea addresses.'
-    },
-    position: { x: 0, y: 300 }
+    type: 'result',
+    data: { label: 'Result Node 2', text: 'Poem about Paris and Madrid' },
+    position: { x: 500, y: 0 }
   },
   {
     id: '6',
-    type: 'result',
-    data: { label: 'Literature Summary', text: 'Literature review summary will appear here' },
-    position: { x: 250, y: 300 }
+    type: 'text',
+    data: { label: 'Text Node 4', text: 'Suggest ways to improve {Result Node 2}' },
+    position: { x: 700, y: 0 }
   },
   {
     id: '7',
-    type: 'text',
-    data: { 
-      label: 'Paper Structure', 
-      text: 'Create an outline for a management research paper based on the recommended idea from {Idea Evaluation} and the literature review {Literature Summary}. Include standard sections such as Introduction, Literature Review, Methodology, Results, Discussion, and Conclusion. Provide brief descriptions of what each section should contain.'
-    },
-    position: { x: 0, y: 450 }
+    type: 'result',
+    data: { label: 'Result Node 3', text: 'Suggestions' },
+    position: { x: 900, y: 0 }
   },
   {
     id: '8',
-    type: 'result',
-    data: { label: 'Paper Outline', text: 'Paper outline will appear here' },
-    position: { x: 250, y: 450 }
-  },
-  {
-    id: '9',
     type: 'text',
-    data: { 
-      label: 'Write Introduction', 
-      text: 'Write the Introduction section of the management research paper based on the recommended idea from {Idea Evaluation}, {Literature Summary}, and {Paper Outline}. Use academic language, cite relevant literature, and ensure coherence with the overall paper structure. Focus on introducing the research problem, stating the purpose of the study, and outlining its significance.'
-    },
-    position: { x: 0, y: 600 }
-  },
-  {
-    id: '10',
-    type: 'result',
-    data: { label: 'Introduction Draft', text: 'Introduction draft will appear here' },
-    position: { x: 250, y: 600 }
-  },
-  {
-    id: '11',
-    type: 'text',
-    data: { 
-      label: 'Refinement', 
-      text: 'Review the entire paper draft, including the recommended idea from {Idea Evaluation}, {Literature Summary}, {Paper Outline}, and {Introduction Draft}. Identify areas for improvement in terms of clarity, coherence, and academic rigor. Suggest specific edits or additions to strengthen the paper\'s arguments and contributions to management theory and practice.'
-    },
-    position: { x: 0, y: 750 }
-  },
-  {
-    id: '12',
-    type: 'result',
-    data: { label: 'Refined Paper', text: 'Refined paper draft will appear here' },
-    position: { x: 250, y: 750 }
-  },
-  {
-    id: '13',
-    type: 'text',
-    data: { 
-      label: 'Final Review', 
-      text: 'Conduct a final review of the management paper {Refined Paper}. Evaluate its overall quality, potential impact, and suitability for publication in a management journal. Provide a summary of strengths and areas for future development.'
-    },
-    position: { x: 0, y: 900 }
-  },
-  {
-    id: '14',
-    type: 'result',
-    data: { label: 'Final Assessment', text: 'Final paper assessment will appear here' },
-    position: { x: 250, y: 900 }
+    data: { label: 'Text Node 5', text: 'Improve {Result Node 2} based on these suggestions {Result Node 3}' },
+    position: { x: 700, y: 100 }
   }
 ]);
 
 let edges = writable<Edge[]>([
   createEdge({ id: 'e1-2', source: '1', target: '2' }),
-  createEdge({ id: 'e2-3', source: '2', target: '3' }),
+  createEdge({ id: 'e2-4', source: '2', target: '4' }),
   createEdge({ id: 'e3-4', source: '3', target: '4' }),
   createEdge({ id: 'e4-5', source: '4', target: '5' }),
   createEdge({ id: 'e5-6', source: '5', target: '6' }),
   createEdge({ id: 'e6-7', source: '6', target: '7' }),
   createEdge({ id: 'e7-8', source: '7', target: '8' }),
-  createEdge({ id: 'e8-9', source: '8', target: '9' }),
-  createEdge({ id: 'e9-10', source: '9', target: '10' }),
-  createEdge({ id: 'e10-11', source: '10', target: '11' }),
-  createEdge({ id: 'e11-12', source: '11', target: '12' }),
-  createEdge({ id: 'e12-13', source: '12', target: '13' }),
-  createEdge({ id: 'e13-14', source: '13', target: '14' })
+  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }) // Iteration edge
 ]);
 
+async function runConnectedNodes(edgeId) {
+  const edge = $edges.find(e => e.id === edgeId);
+  if (!edge) return;
 
-  async function runConnectedNodes(edgeId) {
-    const edge = $edges.find(e => e.id === edgeId);
-    if (!edge) return;
+  const sourceNode = $nodes.find(n => n.id === edge.source);
+  const targetNode = $nodes.find(n => n.id === edge.target);
 
-    const sourceNode = $nodes.find(n => n.id === edge.source);
-    const targetNode = $nodes.find(n => n.id === edge.target);
+  if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
+    processing = true;
 
-    if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
-      processing = true;
+    // Process the source node
+    let processedText = sourceNode.data.text;
+    const referencedNodes = [];
 
-      // Process the source node
-      let processedText = sourceNode.data.text;
-      const referencedNodes = [];
+    // Replace references with actual values and collect referenced nodes
+    const regex = /{([^}]+)}/g;
+    processedText = processedText.replace(regex, (match, label) => {
+      const referencedNode = $nodes.find(n => n.data.label === label);
+      if (referencedNode) {
+        referencedNodes.push(referencedNode);
+        if (referencedNode.type === 'result' && referencedNode.data.results) {
+          return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
+            ? referencedNode.data.results[referencedNode.data.results.length - 1]
+            : match;
+        } else if (referencedNode.type === 'text') {
+          return referencedNode.data.text || match;
+        }
+      }
+      return match;
+    });
 
-      // Replace references with actual values and collect referenced nodes
-      const regex = /{([^}]+)}/g;
-      processedText = processedText.replace(regex, (match, label) => {
-        const referencedNode = $nodes.find(n => n.data.label === label);
-        if (referencedNode) {
-          referencedNodes.push(referencedNode);
-          if (referencedNode.type === 'result' && referencedNode.data.results) {
-            return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-              ? referencedNode.data.results[referencedNode.data.results.length - 1]
-              : match;
-          } else if (referencedNode.type === 'text') {
-            return referencedNode.data.text || match;
+    // Update node classes
+    nodes.update(n => n.map(node => ({
+      ...node,
+      class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
+        ? `${node.class || ''} processing`.trim()
+        : node.class
+    })));
+
+    // Animate the edge
+    edges.update(e => e.map(edge => ({
+      ...edge,
+      animated: edge.id === edgeId,
+      class: edge.id === edgeId ? 'processing-edge' : edge.class
+    })));
+
+    // Delay to allow for visual update
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const response = await getLLMResponse(processedText);
+
+    // Update the target node with the response
+    nodes.update(n => n.map(node => {
+      if (node.id === targetNode.id) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            results: [...(node.data.results || []), response]
           }
-        }
-        return match;
-      });
+        };
+      }
+      return node;
+    }));
 
-      // Update node classes
-      nodes.update(n => n.map(node => ({
-        ...node,
-        class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
-          ? `${node.class || ''} processing`.trim()
-          : node.class
-      })));
+    // Reset processing classes and animations
+    nodes.update(n => n.map(node => ({
+      ...node,
+      class: (node.class || '').replace('processing', '').trim()
+    })));
 
-      // Animate the edge
-      edges.update(e => e.map(edge => ({
-        ...edge,
-        animated: edge.id === edgeId,
-        class: edge.id === edgeId ? 'processing-edge' : edge.class
-      })));
+    edges.update(e => e.map(edge => ({
+      ...edge,
+      animated: false,
+      class: (edge.class || '').replace('processing-edge', '').trim()
+    })));
 
-      // Delay to allow for visual update
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const response = await getLLMResponse(processedText);
-
-      // Update the target node with the response
-      nodes.update(n => n.map(node => {
-        if (node.id === targetNode.id) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              results: [...(node.data.results || []), response]
-            }
-          };
-        }
-        return node;
-      }));
-
-      // Reset processing classes and animations
-      nodes.update(n => n.map(node => ({
-        ...node,
-        class: (node.class || '').replace('processing', '').trim()
-      })));
-
-      edges.update(e => e.map(edge => ({
-        ...edge,
-        animated: false,
-        class: (edge.class || '').replace('processing-edge', '').trim()
-      })));
-
-      processing = false;
-    }
+    processing = false;
   }
+}
+
 
 
   let id = 10;
@@ -324,7 +265,7 @@ let edges = writable<Edge[]>([
   // Call forceEdgeUpdate periodically
   setInterval(forceEdgeUpdate, 2000);
 
-
+$: console.log('Current edges:', $edges);
 
 async function onBigButtonClick() {
   processing = true;
@@ -348,15 +289,15 @@ async function onBigButtonClick() {
         .map(edge => allNodes.find(n => n.id === edge.target))
         .filter(n => n && n.type === 'result');
 
-      // Add processing class to connected result nodes
-      allNodes = allNodes.map(n => ({
-        ...n,
-        class: connectedResultNodes.some(rn => rn.id === n.id) 
-          ? `${n.class || ''} processing`.trim() 
-          : n.class
-      }));
+      for (const resultNode of connectedResultNodes) {
+        // Add processing class to current result node
+        allNodes = allNodes.map(n => ({
+          ...n,
+          class: n.id === resultNode.id 
+            ? `${n.class || ''} processing`.trim() 
+            : n.class
+        }));
 
-      if (connectedResultNodes.length > 0) {
         let processedText = node.data.text;
 
         // Replace references with actual values and collect referenced nodes
@@ -384,13 +325,13 @@ async function onBigButtonClick() {
             : n.class
         }));
 
-        // Animate connected edges
+        // Animate connected edge
         allEdges = allEdges.map(edge => ({
-  ...edge,
-  animated: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target),
-  class: edge.source === node.id || connectedResultNodes.some(rn => rn.id === edge.target) 
-    ? 'processing-edge' 
-    : edge.class
+          ...edge,
+          animated: edge.source === node.id && edge.target === resultNode.id,
+          class: edge.source === node.id && edge.target === resultNode.id
+            ? 'processing-edge' 
+            : edge.class
         }));
         edges.set(allEdges);
 
@@ -402,51 +343,54 @@ async function onBigButtonClick() {
 
         const response = await getLLMResponse(processedText);
 
-        for (const resultNode of connectedResultNodes as Node[]) {
-          allNodes = allNodes.map(n => {
-            if (n.id === resultNode.id) {
-              return {
-                ...n,
-                data: {
-                  ...n.data,
-                  results: [...(n.data.results || []), response]
-                }
-              };
-            }
-            return n;
-          });
-        }
+        allNodes = allNodes.map(n => {
+          if (n.id === resultNode.id) {
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                results: [...(n.data.results || []), response]
+              }
+            };
+          }
+          return n;
+        });
 
-        // Update the nodes store with the new allNodes array
+        // Remove processing class from current result node and referenced nodes
+        allNodes = allNodes.map(n => ({
+          ...n,
+          class: (n.class || '')
+            .replace('processing', '')
+            .replace('referenced', '')
+            .trim()
+        }));
+
+        // Reset edge animation
+        allEdges = allEdges.map(edge => ({
+          ...edge,
+          animated: false,
+          class: (edge.class || '').replace('processing-edge', '').trim()
+        }));
+
+        // Update the nodes and edges stores
         nodes.set(allNodes);
+        edges.set(allEdges);
+
+        // Delay to allow for visual update
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // Remove processing class from current node, connected result nodes, and referenced nodes
+      // Remove processing class from text node
       allNodes = allNodes.map(n => ({
         ...n,
-        class: (n.class || '')
-          .replace('processing', '')
-          .replace('referenced', '')
-          .trim()
+        class: n.id === node.id ? (n.class || '').replace('processing', '').trim() : n.class
       }));
       nodes.set(allNodes);
-
-      // Reset edge animations and remove processing class
-      allEdges = allEdges.map(edge => ({
-        ...edge,
-        animated: false,
-        class: (edge.class || '').replace('processing-edge', '').trim()
-      }));
-      edges.set(allEdges);
-
-      // Delay to allow for visual update
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
   processing = false;
 }
-
 
 
   function deleteNode(id: string) {
