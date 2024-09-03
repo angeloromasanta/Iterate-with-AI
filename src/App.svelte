@@ -131,6 +131,18 @@
     type: 'text',
     data: { label: 'Text Node 5', text: 'Improve {Result Node 2} based on these suggestions {Result Node 3}' },
     position: { x: 700, y: 100 }
+  },
+  {
+    id: '9',
+    type: 'text',
+    data: { label: 'Text Node 6', text: 'Format the poem in {Result Node 2}' },
+    position: { x: 1100, y: 100 }
+  },
+  {
+    id: '10',
+    type: 'result',
+    data: { label: 'Result Node 4', text: 'Final Poem' },
+    position: { x: 1300, y: 100 }
   }
 ]);
 
@@ -142,7 +154,9 @@ let edges = writable<Edge[]>([
   createEdge({ id: 'e5-6', source: '5', target: '6' }),
   createEdge({ id: 'e6-7', source: '6', target: '7' }),
   createEdge({ id: 'e7-8', source: '7', target: '8' }),
-  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }) // Iteration edge
+  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }), // Iteration edge
+  createEdge({ id: 'e5-9', source: '5', target: '9' }),
+  createEdge({ id: 'e9-10', source: '9', target: '10' }),
 ]);
 
 async function runConnectedNodes(edgeId) {
@@ -228,7 +242,7 @@ async function runConnectedNodes(edgeId) {
 
 
 
-  let id = 10;
+  let id = 11;
   const getId = () => `${id++}`;
   let processing = false;
 
