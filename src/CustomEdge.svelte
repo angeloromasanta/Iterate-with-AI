@@ -29,6 +29,7 @@
   export let targetHandleId = null;
   export let markerStart = null;
 
+  
   $: [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -77,6 +78,7 @@
   });
 </script>
 
+
 <g on:mouseenter={showButtons} on:mouseleave={hideButtons}>
   <path
     {id}
@@ -103,6 +105,31 @@
       </g>
     </g>
   {/if}
+
+  {#if data && data.endLabel}
+  <g transform={`translate(${targetX}, ${targetY})`}>
+    <rect
+      x="-50"
+      y="-25"
+      width="100"
+      height="20"
+      rx="5"
+      ry="5"
+      fill="white"
+      stroke="black"
+    />
+    <text
+      x="0"
+      y="-13"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      font-size="12"
+    >
+      {data.endLabel}
+    </text>
+  </g>
+{/if}
+
 </g>
 
 <style>

@@ -56,30 +56,43 @@
     selected: false,
     data: { 
       onPlay: () => runConnectedNodes(edgeId),
-      onDelete: (id: string) => deleteEdge(id)
+      onDelete: (id: string) => deleteEdge(id),
+      endLabel: '' // Add this line
     }
   };
 }
 
-  // Add this function to delete an edge
-  function deleteEdge(id: string) {
-    edges.update(e => e.filter(edge => edge.id !== id));
-  }
 
 
-  function onConnect(params: any) {
+ function onConnect(params: any) {
+  let newEdge;
   edges.update(eds => {
-    const newEdge = createEdge({
+    newEdge = createEdge({
       id: `e${params.source}-${params.target}`,
       source: params.source,
       target: params.target
     });
-    console.log('New edge added:', newEdge);
     return [...eds, newEdge];
   });
 
-  // Force update all edges after a short delay
+  // Immediately check for cycles and update the new edge
+  const cycleEdges = detectCycles($nodes, [...$edges, newEdge]);
+  if (cycleEdges.has(`${newEdge.source}-${newEdge.target}`)) {
+    edges.update(eds => 
+      eds.map(edge => 
+        edge.id === newEdge.id 
+          ? {...edge, data: {...edge.data, endLabel: 'Iteration loop'}} 
+          : edge
+      )
+    );
+  }
+
   setTimeout(forceEdgeUpdate, 100);
+}
+
+function deleteEdge(id: string) {
+  edges.update(e => e.filter(edge => edge.id !== id));
+  updateEdgeLabels(); // Add this line
 }
 
 
@@ -88,61 +101,61 @@
     id: '1',
     type: 'text',
     data: { label: 'Text Node 1', text: 'Name the capital of Spain' },
-    position: { x: -100, y: -50 }
+    position: { x: -140, y: -10 }
   },
   {
     id: '2',
     type: 'result',
     data: { label: 'Result Node 1', text: 'Madrid' },
-    position: { x: 100, y: -50 }
+    position: { x: 120, y: -10 }
   },
   {
     id: '3',
     type: 'text',
     data: { label: 'Text Node 2', text: 'Paris' },
-    position: { x: -100, y: 50 }
+    position: { x: -140, y: 160 }
   },
   {
     id: '4',
     type: 'text',
     data: { label: 'Text Node 3', text: 'Write a poem about {Result Node 1} and {Text Node 2}' },
-    position: { x: 300, y: 0 }
+    position: { x: 350, y: 80 }
   },
   {
     id: '5',
     type: 'result',
     data: { label: 'Result Node 2', text: 'Poem about Paris and Madrid' },
-    position: { x: 500, y: 0 }
+    position: { x: 600, y: 100 }
   },
   {
     id: '6',
     type: 'text',
     data: { label: 'Text Node 4', text: 'Suggest ways to improve {Result Node 2}' },
-    position: { x: 700, y: 0 }
+    position: { x: 900, y: 100 }
   },
   {
     id: '7',
     type: 'result',
     data: { label: 'Result Node 3', text: 'Suggestions' },
-    position: { x: 900, y: 0 }
+    position: { x: 1100, y: 90 }
   },
   {
     id: '8',
     type: 'text',
     data: { label: 'Text Node 5', text: 'Improve {Result Node 2} based on these suggestions {Result Node 3}' },
-    position: { x: 700, y: 100 }
+    position: { x: 1500, y: 150 }
   },
   {
     id: '9',
     type: 'text',
     data: { label: 'Text Node 6', text: 'Format the poem in {Result Node 2}' },
-    position: { x: 1100, y: 100 }
+    position: { x: 850, y: 350 }
   },
   {
     id: '10',
     type: 'result',
     data: { label: 'Result Node 4', text: 'Final Poem' },
-    position: { x: 1300, y: 100 }
+    position: { x: 1100, y: 350 }
   }
 ]);
 
@@ -280,6 +293,7 @@ async function runConnectedNodes(edgeId) {
   setInterval(forceEdgeUpdate, 2000);
 
 $: console.log('Current edges:', $edges);
+$: console.log('Current nodes:', $nodes);
 
 async function onBigButtonClick() {
   processing = true;
@@ -404,6 +418,7 @@ async function onBigButtonClick() {
   }
 
   processing = false;
+  updateEdgeLabels(); 
 }
 
 
@@ -443,8 +458,68 @@ async function onBigButtonClick() {
 
     return stack.reverse().map(id => nodes.find(node => node.id === id));
   }
+  function detectCycles(nodes, edges) {
+  const graph = new Map();
+  nodes.forEach(node => graph.set(node.id, []));
+  edges.forEach(edge => {
+    if (graph.has(edge.source)) {
+      graph.get(edge.source).push({ target: edge.target, id: edge.id });
+    }
+  });
 
-  
+  const visited = new Set();
+  const recursionStack = new Set();
+  const cycleEdges = new Set();
+
+  function dfs(nodeId, path = []) {
+    if (recursionStack.has(nodeId)) {
+      const cycleStart = path.findIndex(node => node.id === nodeId);
+      if (cycleStart !== -1) {
+        const cycle = path.slice(cycleStart);
+        const lastEdge = cycle[cycle.length - 1].edgeId;
+        if (lastEdge) cycleEdges.add(lastEdge);
+      }
+      return;
+    }
+
+    if (visited.has(nodeId)) return;
+
+    visited.add(nodeId);
+    recursionStack.add(nodeId);
+
+    const neighbors = graph.get(nodeId) || [];
+    for (const { target, id } of neighbors) {
+      dfs(target, [...path, { id: nodeId, edgeId: id }]);
+    }
+
+    recursionStack.delete(nodeId);
+  }
+
+  for (const node of nodes) {
+    if (!visited.has(node.id)) {
+      dfs(node.id);
+    }
+  }
+
+  return cycleEdges;
+}
+
+
+
+
+function updateEdgeLabels() {
+  const cycleEdges = detectCycles($nodes, $edges);
+  console.log('Detected cycle edges:', cycleEdges);  // For debugging
+
+  edges.update(e => e.map(edge => ({
+    ...edge,
+    data: {
+      ...edge.data,
+      endLabel: cycleEdges.has(edge.id) ? 'Iteration loop' : ''
+    }
+  })));
+}
+
 </script>
 
 
