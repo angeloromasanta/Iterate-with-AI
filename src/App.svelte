@@ -295,8 +295,8 @@ async function runConnectedNodes(edgeId) {
 $: console.log('Current edges:', $edges);
 $: console.log('Current nodes:', $nodes);
 
-
 async function onBigButtonClick() {
+  console.log("Starting onBigButtonClick");
   processing = true;
   let allNodes = $nodes;
   let allEdges = $edges;
@@ -308,39 +308,59 @@ async function onBigButtonClick() {
     return [edge.source, edge.target];
   }));
 
+  console.log("Cycle nodes:", Array.from(cycleNodes));
+
   const processOrder = [];
   const visited = new Set();
   const cycleCounters = new Map();
 
-  function dfs(nodeId) {
-    if (!cycleNodes.has(nodeId) && visited.has(nodeId)) return;
+  function dfs(nodeId, depth = 0, inCycle = false) {
+    console.log(`  `.repeat(depth) + `DFS visiting node: ${nodeId}, inCycle: ${inCycle}`);
+    
+    if (!cycleNodes.has(nodeId) && visited.has(nodeId)) {
+      console.log(`  `.repeat(depth) + `Skipping non-cycle node ${nodeId}: already visited`);
+      return;
+    }
     
     if (cycleNodes.has(nodeId)) {
-      const cycleCount = cycleCounters.get(nodeId) || 0;
-      if (cycleCount >= 2) return;
-      cycleCounters.set(nodeId, cycleCount + 1);
+      cycleCounters.set(nodeId, (cycleCounters.get(nodeId) || 0) + 1);
+      console.log(`  `.repeat(depth) + `Cycle node ${nodeId} count: ${cycleCounters.get(nodeId)}`);
+      
+      if (cycleCounters.get(nodeId) > 2) {
+        console.log(`  `.repeat(depth) + `Skipping cycle node ${nodeId}: already visited twice`);
+        return;
+      }
     }
 
     visited.add(nodeId);
     processOrder.push(nodeId);
+    console.log(`  `.repeat(depth) + `Added ${nodeId} to processOrder`);
 
     const neighbors = graph.get(nodeId) || [];
-    const cycleNeighbors = neighbors.filter(n => cycleNodes.has(n));
-    const nonCycleNeighbors = neighbors.filter(n => !cycleNodes.has(n));
+    console.log(`  `.repeat(depth) + `Neighbors of ${nodeId}:`, neighbors);
 
-    cycleNeighbors.forEach(dfs);
-    if (cycleCounters.get(nodeId) === 2 || !cycleNodes.has(nodeId)) {
-      nonCycleNeighbors.forEach(dfs);
+    for (const neighbor of neighbors) {
+      if (cycleNodes.has(neighbor)) {
+        dfs(neighbor, depth + 1, true);
+      } else if (!inCycle || cycleCounters.get(nodeId) === 2) {
+        dfs(neighbor, depth + 1, false);
+      }
     }
   }
 
+  console.log("Starting initial DFS");
   allNodes.forEach(node => {
     if (!visited.has(node.id)) {
       dfs(node.id);
     }
   });
 
+  console.log("Final process order:", processOrder);
+  console.log("Cycle counters:", Object.fromEntries(cycleCounters));
+
+  // Process nodes in the order determined by DFS
   for (const nodeId of processOrder) {
+    console.log(`Processing node: ${nodeId}`);
     const node = allNodes.find(n => n.id === nodeId);
     if (node.type === 'text') {
       const connectedResultNodes = allEdges
@@ -349,6 +369,7 @@ async function onBigButtonClick() {
         .filter(n => n && n.type === 'result');
 
       for (const resultNode of connectedResultNodes) {
+        // Process the node
         allNodes = allNodes.map(n => ({
           ...n,
           class: n.id === node.id || n.id === resultNode.id
@@ -435,11 +456,25 @@ async function onBigButtonClick() {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
+
+    // If this node is part of a cycle and hasn't been processed twice, add it back to the processOrder
+    if (cycleNodes.has(nodeId) && (cycleCounters.get(nodeId) || 0) < 2) {
+      cycleCounters.set(nodeId, (cycleCounters.get(nodeId) || 0) + 1);
+      console.log(`Incrementing cycle count for ${nodeId}: ${cycleCounters.get(nodeId)}`);
+      if (cycleCounters.get(nodeId) < 2) {
+        processOrder.splice(i + 1, 0, nodeId);
+        console.log(`Re-added ${nodeId} to processOrder`);
+      }
+    }
   }
+
+  console.log("Final process order:", processOrder);
+  console.log("Cycle counters:", Object.fromEntries(cycleCounters));
 
   processing = false;
   updateEdgeLabels();
 }
+
 
 function buildGraph(nodes, edges) {
   const graph = new Map();
