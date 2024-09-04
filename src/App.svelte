@@ -81,7 +81,7 @@
     edges.update(eds => 
       eds.map(edge => 
         edge.id === newEdge.id 
-          ? {...edge, data: {...edge.data, endLabel: 'Iteration loop'}} 
+          ? {...edge, data: {...edge.data, endLabel: 'Loops remaining: 2'}} 
           : edge
       )
     );
@@ -515,7 +515,7 @@ function updateEdgeLabels() {
     ...edge,
     data: {
       ...edge.data,
-      endLabel: cycleEdges.has(edge.id) ? 'Iteration loop' : ''
+      endLabel: cycleEdges.has(edge.id) ? 'Loops remaining: 2' : ''
     }
   })));
 }

@@ -76,6 +76,42 @@
       clearTimeout(hideTimeout);
     };
   });
+
+  let path: string;
+  $: {
+    if (sourceX > targetX) {
+      // If the source is to the right of the target (connecting to left side)
+      const dx = Math.abs(sourceX - targetX);
+      const dy = Math.abs(sourceY - targetY);
+      
+      // Calculate control points for a looping curve
+      const controlPointOffsetX = dx * 0.3;
+      const controlPointOffsetY = Math.max(dy, 150) * (sourceY > targetY ? -1 : 1);
+      
+      const sourceControlX = sourceX + controlPointOffsetX;
+      const sourceControlY = sourceY + controlPointOffsetY;
+      
+      const targetControlX = targetX - controlPointOffsetX;
+      const targetControlY = targetY + controlPointOffsetY;
+      
+      path = `M ${sourceX} ${sourceY} 
+              C ${sourceControlX} ${sourceControlY}, 
+                ${targetControlX} ${targetControlY}, 
+                ${targetX} ${targetY}`;
+    } else {
+      // For other cases, use the default bezier path
+      [path] = getBezierPath({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition,
+      });
+    }
+  }
+
+
 </script>
 
 
@@ -84,9 +120,10 @@
     {id}
     style={style}
     class="react-flow__edge-path"
-    d={edgePath}
+    d={path}
     marker-end={markerEnd}
   />
+
 
   {#if isHovered}
     <g transform={`translate(${(sourceX + targetX) / 2 - 40}, ${(sourceY + targetY) / 2 - 20})`}>
