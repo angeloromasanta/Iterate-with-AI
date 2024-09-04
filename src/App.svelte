@@ -295,40 +295,71 @@ async function runConnectedNodes(edgeId) {
 $: console.log('Current edges:', $edges);
 $: console.log('Current nodes:', $nodes);
 
+
 async function onBigButtonClick() {
   processing = true;
   let allNodes = $nodes;
   let allEdges = $edges;
 
-  const sortedNodes = topologicalSort(allNodes, allEdges);
+  const cycleEdges = detectCycles(allNodes, allEdges);
+  const graph = buildGraph(allNodes, allEdges);
+  const cycleNodes = new Set(Array.from(cycleEdges).flatMap(edgeId => {
+    const edge = allEdges.find(e => e.id === edgeId);
+    return [edge.source, edge.target];
+  }));
 
-  for (const node of sortedNodes) {
+  const processOrder = [];
+  const visited = new Set();
+  const cycleCounters = new Map();
+
+  function dfs(nodeId) {
+    if (!cycleNodes.has(nodeId) && visited.has(nodeId)) return;
+    
+    if (cycleNodes.has(nodeId)) {
+      const cycleCount = cycleCounters.get(nodeId) || 0;
+      if (cycleCount >= 2) return;
+      cycleCounters.set(nodeId, cycleCount + 1);
+    }
+
+    visited.add(nodeId);
+    processOrder.push(nodeId);
+
+    const neighbors = graph.get(nodeId) || [];
+    const cycleNeighbors = neighbors.filter(n => cycleNodes.has(n));
+    const nonCycleNeighbors = neighbors.filter(n => !cycleNodes.has(n));
+
+    cycleNeighbors.forEach(dfs);
+    if (cycleCounters.get(nodeId) === 2 || !cycleNodes.has(nodeId)) {
+      nonCycleNeighbors.forEach(dfs);
+    }
+  }
+
+  allNodes.forEach(node => {
+    if (!visited.has(node.id)) {
+      dfs(node.id);
+    }
+  });
+
+  for (const nodeId of processOrder) {
+    const node = allNodes.find(n => n.id === nodeId);
     if (node.type === 'text') {
-      const referencedNodes = [];
-      
-      // Add processing class to current node
-      allNodes = allNodes.map(n => ({
-        ...n,
-        class: n.id === node.id ? `${n.class || ''} processing`.trim() : n.class
-      }));
-
       const connectedResultNodes = allEdges
         .filter(edge => edge.source === node.id)
         .map(edge => allNodes.find(n => n.id === edge.target))
         .filter(n => n && n.type === 'result');
 
       for (const resultNode of connectedResultNodes) {
-        // Add processing class to current result node
         allNodes = allNodes.map(n => ({
           ...n,
-          class: n.id === resultNode.id 
-            ? `${n.class || ''} processing`.trim() 
+          class: n.id === node.id || n.id === resultNode.id
+            ? `${n.class || ''} processing`.trim()
             : n.class
         }));
 
         let processedText = node.data.text;
+        const referencedNodes = [];
 
-        // Replace references with actual values and collect referenced nodes
+        // Replace references
         const regex = /{([^}]+)}/g;
         processedText = processedText.replace(regex, (match, label) => {
           const referencedNode = allNodes.find(n => n.data.label === label);
@@ -358,19 +389,18 @@ async function onBigButtonClick() {
           ...edge,
           animated: edge.source === node.id && edge.target === resultNode.id,
           class: edge.source === node.id && edge.target === resultNode.id
-            ? 'processing-edge' 
+            ? 'processing-edge'
             : edge.class
         }));
-        edges.set(allEdges);
 
-        // Update nodes to trigger re-render
+        edges.set(allEdges);
         nodes.set(allNodes);
 
-        // Delay to allow for visual update
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const response = await getLLMResponse(processedText);
 
+        // Update result node
         allNodes = allNodes.map(n => {
           if (n.id === resultNode.id) {
             return {
@@ -384,7 +414,7 @@ async function onBigButtonClick() {
           return n;
         });
 
-        // Remove processing class from current result node and referenced nodes
+        // Remove processing classes
         allNodes = allNodes.map(n => ({
           ...n,
           class: (n.class || '')
@@ -393,32 +423,33 @@ async function onBigButtonClick() {
             .trim()
         }));
 
-        // Reset edge animation
         allEdges = allEdges.map(edge => ({
           ...edge,
           animated: false,
           class: (edge.class || '').replace('processing-edge', '').trim()
         }));
 
-        // Update the nodes and edges stores
         nodes.set(allNodes);
         edges.set(allEdges);
 
-        // Delay to allow for visual update
         await new Promise(resolve => setTimeout(resolve, 100));
       }
-
-      // Remove processing class from text node
-      allNodes = allNodes.map(n => ({
-        ...n,
-        class: n.id === node.id ? (n.class || '').replace('processing', '').trim() : n.class
-      }));
-      nodes.set(allNodes);
     }
   }
 
   processing = false;
-  updateEdgeLabels(); 
+  updateEdgeLabels();
+}
+
+function buildGraph(nodes, edges) {
+  const graph = new Map();
+  nodes.forEach(node => graph.set(node.id, []));
+  edges.forEach(edge => {
+    if (graph.has(edge.source)) {
+      graph.get(edge.source).push(edge.target);
+    }
+  });
+  return graph;
 }
 
 
