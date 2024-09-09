@@ -1,7 +1,7 @@
 <!-- CustomEdge.svelte -->
 <script lang="ts">
   import { getBezierPath } from '@xyflow/svelte';
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
 
   export let id;
   export let sourceX;
@@ -13,6 +13,9 @@
   export let style = '';
   export let markerEnd;
   export let data;
+  export let animated = false;
+
+  const dispatch = createEventDispatcher();
 
   $: [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -34,25 +37,21 @@
   function hideButtons() {
     hideTimeout = setTimeout(() => {
       isHovered = false;
-    }, 1500); // Keep buttons visible for 1.5 seconds after mouse leaves
+    }, 1500);
   }
-
-  let isAnimated = false;
 
   function onPlay() {
     if (data && typeof data.onPlay === 'function') {
       data.onPlay();
     }
-    isAnimated = true;
-    setTimeout(() => {
-      isAnimated = false;
-    }, 2000); // Stop animation after 2 seconds
+    dispatch('play', { id });
   }
 
   function onDelete() {
     if (data && typeof data.onDelete === 'function') {
-      data.onDelete(id);
+      data.onDelete();
     }
+    dispatch('delete', { id });
   }
 
   onMount(() => {
@@ -67,6 +66,7 @@
     {id}
     style={style}
     class="react-flow__edge-path"
+    class:animated
     d={edgePath}
     marker-end={markerEnd}
   />
@@ -75,14 +75,12 @@
     <g transform={`translate(${(sourceX + targetX) / 2 - 40}, ${(sourceY + targetY) / 2 - 20})`}>
       <rect x="0" y="0" width="80" height="40" rx="5" ry="5" fill="white" stroke="black" />
       
-      <!-- Play button -->
-      <g on:click|stopPropagation={onPlay} style="cursor: pointer;">
+      <g on:click|stopPropagation={onPlay} class="button play-button">
         <rect x="5" y="5" width="30" height="30" rx="3" ry="3" fill="#4CAF50" />
         <path d="M15 10l15 10-15 10V10z" fill="white" />
       </g>
       
-      <!-- Delete button -->
-      <g on:click|stopPropagation={onDelete} style="cursor: pointer;">
+      <g on:click|stopPropagation={onDelete} class="button delete-button">
         <rect x="45" y="5" width="30" height="30" rx="3" ry="3" fill="#F44336" />
         <path d="M52 13l16 16M68 13l-16 16" stroke="white" stroke-width="2" />
       </g>
@@ -93,5 +91,24 @@
 <style>
   g {
     pointer-events: all;
+  }
+
+  .button {
+    cursor: pointer;
+    transition: transform 0.1s ease-in-out;
+  }
+
+  .button:hover {
+    transform: scale(1.1);
+  }
+
+  .animated {
+    animation: dash 1s linear infinite;
+  }
+
+  @keyframes dash {
+    to {
+      stroke-dashoffset: 24;
+    }
   }
 </style>

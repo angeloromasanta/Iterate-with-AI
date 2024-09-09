@@ -86,30 +86,27 @@
       style: defaultEdgeOptions.style,
       data: { 
         onPlay: () => runConnectedNodes(edgeId),
-        onDelete: (id: string) => deleteEdge(id) // Add this line
+        onDelete: () => deleteEdge(edgeId)
       }
     };
   }
 
-  // Add this function to delete an edge
   function deleteEdge(id: string) {
     edges.update(e => e.filter(edge => edge.id !== id));
   }
 
-
-function onConnect(params: any) {
+  function onConnect(params: any) {
     edges.update(eds => {
       const newEdge = createEdge(params);
-      console.log('New edge added:', newEdge);
       return [...eds, newEdge];
     });
-
-    // Force update all edges after a short delay
-    setTimeout(forceEdgeUpdate, 100);
+    forceEdgeUpdate();
   }
 
-
-$: console.log('Current edges:', $edges);
+  $: {
+    console.log('Current edges:', $edges);
+    forceEdgeUpdate();
+  }
 
 
 
