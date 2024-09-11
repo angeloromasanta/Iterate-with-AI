@@ -305,87 +305,39 @@ async function runConnectedNodes(edgeId) {
   // Call forceEdgeUpdate periodically
   setInterval(forceEdgeUpdate, 2000);
 
-
-  async function onBigButtonClick() {
-    console.log("Starting onBigButtonClick");
-    processing = true;
-    let allNodes = $nodes;
-    let allEdges = $edges;
-
-    const graph = buildGraph(allNodes, allEdges);
-    const cycleEdges = detectCycles(allNodes, allEdges);
-    const dependencies = findDependencies(graph, cycleEdges);
-    const loopCounts = getLoopCounts(allEdges, cycleEdges);
-
-    console.log("Graph:", graph);
-    console.log("Cycle Edges:", cycleEdges);
-    console.log("Dependencies:", dependencies);
-    console.log("Loop counts:", loopCounts);
-
-    const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycleEdges, loopCounts);
-    console.log("Execution order:", executionOrder);
-
-    for (const nodeId of executionOrder) {
-      await processNode(nodeId);
-    }
-
-    processing = false;
-  }
-
-
-  function calculateExecutionOrder(nodes, graph, dependencies, cycleEdges, loopCounts) {
-    const executionOrder = [];
+  function findAllCycleNodes(graph) {
     const visited = new Set();
-    const inProgress = new Set();
-    const loopStarts = new Map(Array.from(cycleEdges).map(edgeId => {
-      const edge = $edges.find(e => e.id === edgeId);
-      return [edge.target, edge.source];
-    }));
+    const cycles = new Set();
 
-    function dfs(nodeId, loopContext = null) {
-      if (visited.has(nodeId) && !loopContext) return;
-      if (inProgress.has(nodeId) && !loopStarts.has(nodeId)) return;
-
-      inProgress.add(nodeId);
-
-      // Process dependencies first
-      const nodeDependencies = dependencies[nodeId] || new Set();
-      for (const depId of nodeDependencies) {
-        if (!visited.has(depId)) {
-          dfs(depId, loopContext);
-        }
+    function dfs(node, path = []) {
+      if (path.includes(node)) {
+        const cycle = new Set(path.slice(path.indexOf(node)));
+        cycles.add(cycle);
+        return;
       }
 
-      executionOrder.push(nodeId);
-      visited.add(nodeId);
-
-      const neighbors = graph.get(nodeId) || [];
-      for (const neighbor of neighbors) {
-        if (loopStarts.get(neighbor) === nodeId) {
-          // This is a loop back edge
-          const loopCount = loopCounts.get(neighbor) || 2;
-          for (let i = 1; i < loopCount; i++) {  // Start from 1 because we've already done one iteration
-            dfs(neighbor, { start: nodeId, iteration: i, total: loopCount });
-          }
-        } else if (!visited.has(neighbor) || (loopContext && neighbor === loopContext.start)) {
-          dfs(neighbor, loopContext);
-        }
+      if (visited.has(node)) {
+        return;
       }
 
-      inProgress.delete(nodeId);
+      visited.add(node);
+      path.push(node);
+
+      for (const neighbor of graph.get(node) || []) {
+        dfs(neighbor, [...path]);
+      }
+
+      path.pop();
     }
 
-    // Start with nodes that have no dependencies
-    const startNodes = nodes.filter(node => !(dependencies[node.id] && dependencies[node.id].size));
-    for (const node of startNodes) {
-      dfs(node.id);
+    for (const startNode of graph.keys()) {
+      if (!visited.has(startNode)) {
+        dfs(startNode);
+      }
     }
 
-    return executionOrder;
+    return cycles;
   }
-
-
-
 
   function buildGraph(nodes, edges) {
     const graph = new Map();
@@ -398,15 +350,14 @@ async function runConnectedNodes(edgeId) {
     return graph;
   }
 
-  function findDependencies(graph, cycleEdges) {
+  function findDependencies(graph, cycles) {
     const dependencies = {};
     for (const [node, neighbors] of graph.entries()) {
       for (const neighbor of neighbors) {
         if (!dependencies[neighbor]) {
           dependencies[neighbor] = new Set();
         }
-        const edgeId = $edges.find(e => e.source === node && e.target === neighbor)?.id;
-        if (!cycleEdges.has(edgeId)) {
+        if (!Array.from(cycles).some(cycle => cycle.has(node) && cycle.has(neighbor))) {
           dependencies[neighbor].add(node);
         }
       }
@@ -414,19 +365,122 @@ async function runConnectedNodes(edgeId) {
     return dependencies;
   }
 
-
-  function getLoopCounts(edges, cycleEdges) {
+  function getLoopCounts(edges, cycles) {
     const loopCounts = new Map();
-    for (const edgeId of cycleEdges) {
-      const edge = edges.find(e => e.id === edgeId);
-      if (edge && edge.data && edge.data.loopCount) {
-        loopCounts.set(edge.target, edge.data.loopCount);
-      } else {
-        loopCounts.set(edge.target, 2); // Default to 2 if not specified
+    for (const cycle of cycles) {
+      for (const node of cycle) {
+        const edge = edges.find(e => cycle.has(e.source) && cycle.has(e.target) && e.target === node);
+        if (edge && edge.data && edge.data.loopCount) {
+          loopCounts.set(node, edge.data.loopCount);
+        } else {
+          loopCounts.set(node, 2); // Default to 2 if not specified
+        }
       }
     }
     return loopCounts;
   }
+
+  async function onBigButtonClick() {
+    console.log("Starting onBigButtonClick");
+    processing = true;
+    let allNodes = $nodes;
+    let allEdges = $edges;
+
+    const graph = buildGraph(allNodes, allEdges);
+    const cycles = findAllCycleNodes(graph);
+    const dependencies = findDependencies(graph, cycles);
+    const loopCounts = getLoopCounts(allEdges, cycles);
+
+    console.log("Graph:", graph);
+    console.log("Cycles:", cycles);
+    console.log("Dependencies:", dependencies);
+    console.log("Loop counts:", loopCounts);
+
+    const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
+    console.log("Execution order:", executionOrder);
+
+    for (const nodeId of executionOrder) {
+      await processNode(nodeId);
+    }
+
+    processing = false;
+  }
+
+  function calculateExecutionOrder(nodes, graph, dependencies, cycles, loopCounts) {
+    const executionOrder = [];
+    const visited = new Map(nodes.map(node => [node.id, 0]));
+
+    function canExecute(nodeId) {
+      return Array.from(dependencies[nodeId] || []).every(depId => visited.get(depId) > 0);
+    }
+
+    function isInCycle(nodeId) {
+      return Array.from(cycles).some(cycle => cycle.has(nodeId));
+    }
+
+    function dfs(nodeId, depth = 0, loopEnd = null) {
+      const indent = "  ".repeat(depth);
+      console.log(`${indent}Visiting node: ${nodeId}`);
+
+      let maxVisits;
+      if (loopCounts.has(nodeId)) {
+        maxVisits = loopCounts.get(nodeId);
+        loopEnd = nodeId;
+      } else if (isInCycle(nodeId)) {
+        maxVisits = loopCounts.get(loopEnd) || 2;
+      } else {
+        maxVisits = 1;
+      }
+
+      if (visited.get(nodeId) >= maxVisits) {
+        console.log(`${indent}Node ${nodeId} already visited ${visited.get(nodeId)} times, max is ${maxVisits}`);
+        return;
+      }
+
+      if (!canExecute(nodeId)) {
+        console.log(`${indent}Cannot execute node ${nodeId} yet, dependencies not met`);
+        return;
+      }
+
+      visited.set(nodeId, visited.get(nodeId) + 1);
+      executionOrder.push(nodeId);
+      console.log(`${indent}Executed node: ${nodeId} (visit ${visited.get(nodeId)})`);
+
+      for (const neighbor of graph.get(nodeId) || []) {
+        dfs(neighbor, depth + 1, loopEnd);
+      }
+
+      if (nodeId === loopEnd && visited.get(nodeId) < maxVisits) {
+        console.log(`${indent}Revisiting cycle ending at node ${nodeId}`);
+        const cycle = Array.from(cycles).find(c => c.has(nodeId));
+        const startNode = Array.from(cycle)[0];
+        for (const cycleNode of cycle) {
+          visited.set(cycleNode, 0);
+        }
+        dfs(startNode, depth, loopEnd);
+      }
+    }
+
+    // Start with nodes that have no dependencies
+    const startNodes = nodes.filter(node => !(dependencies[node.id] && dependencies[node.id].size));
+    for (const node of startNodes) {
+      dfs(node.id);
+    }
+
+    // Check if there are any unvisited nodes and try to visit them
+    let unvisited = Array.from(visited).filter(([_, count]) => count === 0).map(([nodeId]) => nodeId);
+    while (unvisited.length > 0) {
+      for (const nodeId of unvisited) {
+        if (canExecute(nodeId)) {
+          dfs(nodeId);
+        }
+      }
+      unvisited = Array.from(visited).filter(([_, count]) => count === 0).map(([nodeId]) => nodeId);
+    }
+
+    return executionOrder;
+  }
+
 
   async function processNode(nodeId) {
     console.log(`Processing node: ${nodeId}`);
