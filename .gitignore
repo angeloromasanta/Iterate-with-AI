@@ -12,7 +12,6 @@ dist
 dist-ssr
 *.local
 
-svelteflowref.txt
 .aider.chat.history.md
 .aider.input.history
 .env

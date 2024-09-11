@@ -184,7 +184,7 @@ let edges = writable<Edge[]>([
       updateCyclicEdges();
     }
   }
-  
+
 async function runConnectedNodes(edgeId) {
   const edge = $edges.find(e => e.id === edgeId);
   if (!edge) return;
@@ -285,7 +285,7 @@ async function runConnectedNodes(edgeId) {
 
 
   }
-  
+
 
   function forceEdgeUpdate() {
   edges.update(currentEdges => {
@@ -305,98 +305,155 @@ async function runConnectedNodes(edgeId) {
   // Call forceEdgeUpdate periodically
   setInterval(forceEdgeUpdate, 2000);
 
-$: console.log('Current edges:', $edges);
-$: console.log('Current nodes:', $nodes);
 
-async function onBigButtonClick() {
-  console.log("Starting onBigButtonClick");
-  processing = true;
-  let allNodes = $nodes;
-  let allEdges = $edges;
+  async function onBigButtonClick() {
+    console.log("Starting onBigButtonClick");
+    processing = true;
+    let allNodes = $nodes;
+    let allEdges = $edges;
 
-  const cycleEdges = detectCycles(allNodes, allEdges);
-  const graph = buildGraph(allNodes, allEdges);
-  const cycleNodes = new Set(Array.from(cycleEdges).flatMap(edgeId => {
-    const edge = allEdges.find(e => e.id === edgeId);
-    return [edge.source, edge.target];
-  }));
+    const graph = buildGraph(allNodes, allEdges);
+    const cycleEdges = detectCycles(allNodes, allEdges);
+    const dependencies = findDependencies(graph, cycleEdges);
+    const loopCounts = getLoopCounts(allEdges, cycleEdges);
 
-  console.log("Cycle nodes:", Array.from(cycleNodes));
+    console.log("Graph:", graph);
+    console.log("Cycle Edges:", cycleEdges);
+    console.log("Dependencies:", dependencies);
+    console.log("Loop counts:", loopCounts);
 
-  const processOrder = [];
-  const visited = new Set();
-  const cycleCounters = new Map();
+    const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycleEdges, loopCounts);
+    console.log("Execution order:", executionOrder);
 
-  function dfs(nodeId, depth = 0, inCycle = false) {
-    console.log(`  `.repeat(depth) + `DFS visiting node: ${nodeId}, inCycle: ${inCycle}`);
-    
-    if (!cycleNodes.has(nodeId) && visited.has(nodeId)) {
-      console.log(`  `.repeat(depth) + `Skipping non-cycle node ${nodeId}: already visited`);
-      return;
-    }
-    
-    if (cycleNodes.has(nodeId)) {
-      cycleCounters.set(nodeId, (cycleCounters.get(nodeId) || 0) + 1);
-      console.log(`  `.repeat(depth) + `Cycle node ${nodeId} count: ${cycleCounters.get(nodeId)}`);
-      
-      if (cycleCounters.get(nodeId) > 2) {
-        console.log(`  `.repeat(depth) + `Skipping cycle node ${nodeId}: already visited twice`);
-        return;
-      }
+    for (const nodeId of executionOrder) {
+      await processNode(nodeId);
     }
 
-    visited.add(nodeId);
-    processOrder.push(nodeId);
-    console.log(`  `.repeat(depth) + `Added ${nodeId} to processOrder`);
-
-    const neighbors = graph.get(nodeId) || [];
-    console.log(`  `.repeat(depth) + `Neighbors of ${nodeId}:`, neighbors);
-
-    for (const neighbor of neighbors) {
-      if (cycleNodes.has(neighbor)) {
-        dfs(neighbor, depth + 1, true);
-      } else if (!inCycle || cycleCounters.get(nodeId) === 2) {
-        dfs(neighbor, depth + 1, false);
-      }
-    }
+    processing = false;
   }
 
-  console.log("Starting initial DFS");
-  allNodes.forEach(node => {
-    if (!visited.has(node.id)) {
+
+  function calculateExecutionOrder(nodes, graph, dependencies, cycleEdges, loopCounts) {
+    const executionOrder = [];
+    const visited = new Set();
+    const inProgress = new Set();
+    const loopStarts = new Map(Array.from(cycleEdges).map(edgeId => {
+      const edge = $edges.find(e => e.id === edgeId);
+      return [edge.target, edge.source];
+    }));
+
+    function dfs(nodeId, loopContext = null) {
+      if (visited.has(nodeId) && !loopContext) return;
+      if (inProgress.has(nodeId) && !loopStarts.has(nodeId)) return;
+
+      inProgress.add(nodeId);
+
+      // Process dependencies first
+      const nodeDependencies = dependencies[nodeId] || new Set();
+      for (const depId of nodeDependencies) {
+        if (!visited.has(depId)) {
+          dfs(depId, loopContext);
+        }
+      }
+
+      executionOrder.push(nodeId);
+      visited.add(nodeId);
+
+      const neighbors = graph.get(nodeId) || [];
+      for (const neighbor of neighbors) {
+        if (loopStarts.get(neighbor) === nodeId) {
+          // This is a loop back edge
+          const loopCount = loopCounts.get(neighbor) || 2;
+          for (let i = 1; i < loopCount; i++) {  // Start from 1 because we've already done one iteration
+            dfs(neighbor, { start: nodeId, iteration: i, total: loopCount });
+          }
+        } else if (!visited.has(neighbor) || (loopContext && neighbor === loopContext.start)) {
+          dfs(neighbor, loopContext);
+        }
+      }
+
+      inProgress.delete(nodeId);
+    }
+
+    // Start with nodes that have no dependencies
+    const startNodes = nodes.filter(node => !(dependencies[node.id] && dependencies[node.id].size));
+    for (const node of startNodes) {
       dfs(node.id);
     }
-  });
 
-  console.log("Final process order:", processOrder);
-  console.log("Cycle counters:", Object.fromEntries(cycleCounters));
+    return executionOrder;
+  }
 
-  // Process nodes in the order determined by DFS
-  for (const nodeId of processOrder) {
+
+
+
+  function buildGraph(nodes, edges) {
+    const graph = new Map();
+    nodes.forEach(node => graph.set(node.id, []));
+    edges.forEach(edge => {
+      if (graph.has(edge.source)) {
+        graph.get(edge.source).push(edge.target);
+      }
+    });
+    return graph;
+  }
+
+  function findDependencies(graph, cycleEdges) {
+    const dependencies = {};
+    for (const [node, neighbors] of graph.entries()) {
+      for (const neighbor of neighbors) {
+        if (!dependencies[neighbor]) {
+          dependencies[neighbor] = new Set();
+        }
+        const edgeId = $edges.find(e => e.source === node && e.target === neighbor)?.id;
+        if (!cycleEdges.has(edgeId)) {
+          dependencies[neighbor].add(node);
+        }
+      }
+    }
+    return dependencies;
+  }
+
+
+  function getLoopCounts(edges, cycleEdges) {
+    const loopCounts = new Map();
+    for (const edgeId of cycleEdges) {
+      const edge = edges.find(e => e.id === edgeId);
+      if (edge && edge.data && edge.data.loopCount) {
+        loopCounts.set(edge.target, edge.data.loopCount);
+      } else {
+        loopCounts.set(edge.target, 2); // Default to 2 if not specified
+      }
+    }
+    return loopCounts;
+  }
+
+  async function processNode(nodeId) {
     console.log(`Processing node: ${nodeId}`);
-    const node = allNodes.find(n => n.id === nodeId);
+    const node = $nodes.find(n => n.id === nodeId);
+
     if (node.type === 'text') {
-      const connectedResultNodes = allEdges
+      const connectedResultNodes = $edges
         .filter(edge => edge.source === node.id)
-        .map(edge => allNodes.find(n => n.id === edge.target))
+        .map(edge => $nodes.find(n => n.id === edge.target))
         .filter(n => n && n.type === 'result');
 
       for (const resultNode of connectedResultNodes) {
-        // Process the node
-        allNodes = allNodes.map(n => ({
+        // Update node classes to show processing
+        nodes.update(n => n.map(n => ({
           ...n,
           class: n.id === node.id || n.id === resultNode.id
             ? `${n.class || ''} processing`.trim()
             : n.class
-        }));
+        })));
 
         let processedText = node.data.text;
         const referencedNodes = [];
 
-        // Replace references
+        // Replace references with actual values and collect referenced nodes
         const regex = /{([^}]+)}/g;
         processedText = processedText.replace(regex, (match, label) => {
-          const referencedNode = allNodes.find(n => n.data.label === label);
+          const referencedNode = $nodes.find(n => n.data.label === label);
           if (referencedNode) {
             referencedNodes.push(referencedNode);
             if (referencedNode.type === 'result' && referencedNode.data.results) {
@@ -410,32 +467,31 @@ async function onBigButtonClick() {
           return match;
         });
 
-        // Add processing class to referenced nodes
-        allNodes = allNodes.map(n => ({
+        // Update referenced nodes to show processing
+        nodes.update(n => n.map(n => ({
           ...n,
           class: referencedNodes.some(rn => rn.id === n.id)
             ? `${n.class || ''} processing referenced`.trim()
             : n.class
-        }));
+        })));
 
-        // Animate connected edge
-        allEdges = allEdges.map(edge => ({
+        // Animate the connected edge
+        edges.update(e => e.map(edge => ({
           ...edge,
           animated: edge.source === node.id && edge.target === resultNode.id,
           class: edge.source === node.id && edge.target === resultNode.id
             ? 'processing-edge'
             : edge.class
-        }));
+        })));
 
-        edges.set(allEdges);
-        nodes.set(allNodes);
-
+        // Delay to allow for visual update
         await new Promise(resolve => setTimeout(resolve, 100));
 
+        // Get response from LLM
         const response = await getLLMResponse(processedText);
 
-        // Update result node
-        allNodes = allNodes.map(n => {
+        // Update the result node with the response
+        nodes.update(n => n.map(n => {
           if (n.id === resultNode.id) {
             return {
               ...n,
@@ -446,59 +502,41 @@ async function onBigButtonClick() {
             };
           }
           return n;
-        });
-
-        // Remove processing classes
-        allNodes = allNodes.map(n => ({
-          ...n,
-          class: (n.class || '')
-            .replace('processing', '')
-            .replace('referenced', '')
-            .trim()
         }));
 
-        allEdges = allEdges.map(edge => ({
+        // Reset processing classes and animations
+        nodes.update(n => n.map(n => ({
+          ...n,
+          class: (n.class || '').replace('processing', '').replace('referenced', '').trim()
+        })));
+
+        edges.update(e => e.map(edge => ({
           ...edge,
           animated: false,
           class: (edge.class || '').replace('processing-edge', '').trim()
-        }));
+        })));
 
-        nodes.set(allNodes);
-        edges.set(allEdges);
-
+        // Delay to allow for visual update
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+    } else if (node.type === 'result') {
+      // If it's a result node, we don't need to process it,
+      // but we might want to update its visual state
+      nodes.update(n => n.map(n => ({
+        ...n,
+        class: n.id === node.id
+          ? `${n.class || ''} visited`.trim()
+          : n.class
+      })));
+
+      // Delay to allow for visual update
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // If this node is part of a cycle and hasn't been processed twice, add it back to the processOrder
-    if (cycleNodes.has(nodeId) && (cycleCounters.get(nodeId) || 0) < 2) {
-      cycleCounters.set(nodeId, (cycleCounters.get(nodeId) || 0) + 1);
-      console.log(`Incrementing cycle count for ${nodeId}: ${cycleCounters.get(nodeId)}`);
-      if (cycleCounters.get(nodeId) < 2) {
-        processOrder.splice(i + 1, 0, nodeId);
-        console.log(`Re-added ${nodeId} to processOrder`);
-      }
-    }
+    console.log(`Finished processing node: ${nodeId}`);
   }
 
-  console.log("Final process order:", processOrder);
-  console.log("Cycle counters:", Object.fromEntries(cycleCounters));
 
-  processing = false;
-  updateEdgeLabels();
-}
-
-
-function buildGraph(nodes, edges) {
-  const graph = new Map();
-  nodes.forEach(node => graph.set(node.id, []));
-  edges.forEach(edge => {
-    if (graph.has(edge.source)) {
-      graph.get(edge.source).push(edge.target);
-    }
-  });
-  return graph;
-}
 
 
   function deleteNode(id: string) {
@@ -615,7 +653,7 @@ function buildGraph(nodes, edges) {
 >
     <Controls />
     <Background variant={BackgroundVariant.Dots} />
-    
+
     <div class="custom-controls">
       <button class="custom-button" on:click={onBigButtonClick} class:processing>
         ⚡️
@@ -623,7 +661,6 @@ function buildGraph(nodes, edges) {
     </div>
   </SvelteFlow>
 </main>
-
 <style>
  :global(body) {
     margin: 0;

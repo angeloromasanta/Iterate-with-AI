@@ -97,8 +97,8 @@
   }
 
 
-  $: loopCountX = targetX - 100; // Move 100 pixels to the left of the target node
-  $: loopCountY = targetY - 30; // Move 30 pixels above the target node
+  $: loopCountX = targetX - 40; // Move 100 pixels to the left of the target node
+  $: loopCountY = targetY - 0; // Move 30 pixels above the target node
   
   let path: string;
   $: {
@@ -165,20 +165,30 @@
     </g>
   {/if}
 
-
-
   {#if data && data.showLoopCount}
     <g transform={`translate(${loopCountX}, ${loopCountY})`}>
-      <circle cx="0" cy="0" r="30" fill="#E0E0E0"/>
+      <!-- Grey border and white fill -->
+      <circle cx="0" cy="0" r="30" fill="white" stroke="#E0E0E0" stroke-width="2"/>
+
+      <!-- "Loops" text on top -->
+      <text x="0" y="-20" text-anchor="middle" font-size="12" fill="#666">Loops</text>
+
+      <!-- Minus button -->
+      <rect x="-24" y="-10" width="14" height="20" fill="#4CAF50" rx="2" ry="2"/>
+      <path d="M-21 0h8" stroke="white" stroke-width="2" />
+
+      <!-- Loop count -->
       <text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="bold">{loopCount}</text>
-      <g on:click|stopPropagation={decrementLoopCount} style="cursor: pointer;">
-        <circle cx="-40" cy="0" r="10" fill="#4CAF50" />
-        <path d="M-44 0h8" stroke="white" stroke-width="2" />
-      </g>
-      <g on:click|stopPropagation={incrementLoopCount} style="cursor: pointer;">
-        <circle cx="40" cy="0" r="10" fill="#4CAF50" />
-        <path d="M36 0h8M40 -4v8" stroke="white" stroke-width="2" />
-      </g>
+
+      <!-- Plus button -->
+      <rect x="10" y="-10" width="14" height="20" fill="#4CAF50" rx="2" ry="2"/>
+      <path d="M13 0h8M17 -4v8" stroke="white" stroke-width="2" />
+
+      <!-- Clickable areas -->
+      <rect x="-24" y="-10" width="14" height="20" fill="transparent" 
+            on:click|stopPropagation={decrementLoopCount} style="cursor: pointer;"/>
+      <rect x="10" y="-10" width="14" height="20" fill="transparent" 
+            on:click|stopPropagation={incrementLoopCount} style="cursor: pointer;"/>
     </g>
   {/if}
 
