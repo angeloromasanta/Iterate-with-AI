@@ -45,55 +45,62 @@
 
 
   function createEdge(params: any) {
-  const edgeId = params.id || `e${params.source}-${params.target}`;
-  return {
-    ...params,
-    id: edgeId,
-    type: 'custom',
-    markerEnd: defaultEdgeOptions.markerEnd,
-    style: defaultEdgeOptions.style,
-    animated: false,
-    selected: false,
-    data: { 
-      onPlay: () => runConnectedNodes(edgeId),
-      onDelete: (id: string) => deleteEdge(id),
-      endLabel: '' // Add this line
-    }
-  };
-}
+    const edgeId = params.id || `e${params.source}-${params.target}`;
+    return {
+      ...params,
+      id: edgeId,
+      type: 'custom',
+      markerEnd: defaultEdgeOptions.markerEnd,
+      style: defaultEdgeOptions.style,
+      animated: false,
+      selected: false,
+      data: { 
+        onPlay: () => runConnectedNodes(edgeId),
+        onDelete: (id: string) => deleteEdge(id),
+        updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
+        showLoopCount: false,
+        loopCount: 2
+      }
+    };
+  }
 
 
+  function deleteEdge(id: string) {
+    edges.update(e => e.filter(edge => edge.id !== id));
+    updateCyclicEdges();
+  }
 
- function onConnect(params: any) {
-  let newEdge;
-  edges.update(eds => {
-    newEdge = createEdge({
-      id: `e${params.source}-${params.target}`,
-      source: params.source,
-      target: params.target
-    });
-    return [...eds, newEdge];
-  });
-
-  // Immediately check for cycles and update the new edge
-  const cycleEdges = detectCycles($nodes, [...$edges, newEdge]);
-  if (cycleEdges.has(`${newEdge.source}-${newEdge.target}`)) {
+  function updateEdgeData(id: string, newData: any) {
     edges.update(eds => 
       eds.map(edge => 
-        edge.id === newEdge.id 
-          ? {...edge, data: {...edge.data, endLabel: 'Loops remaining: 2'}} 
+        edge.id === id 
+          ? {...edge, data: {...edge.data, ...newData}} 
           : edge
       )
     );
   }
 
-  setTimeout(forceEdgeUpdate, 100);
-}
 
-function deleteEdge(id: string) {
-  edges.update(e => e.filter(edge => edge.id !== id));
-  updateEdgeLabels(); // Add this line
-}
+
+
+  function onConnect(params: any) {
+    let newEdge;
+    edges.update(eds => {
+      newEdge = createEdge({
+        id: `e${params.source}-${params.target}`,
+        source: params.source,
+        target: params.target
+      });
+      return [...eds, newEdge];
+    });
+
+    // Update cyclic edges after adding the new edge
+    updateCyclicEdges();
+
+    setTimeout(forceEdgeUpdate, 100);
+  }
+
+
 
 
   let nodes = writable<Node[]>([
@@ -172,6 +179,12 @@ let edges = writable<Edge[]>([
   createEdge({ id: 'e9-10', source: '9', target: '10' }),
 ]);
 
+  $: {
+    if ($edges) {
+      updateCyclicEdges();
+    }
+  }
+  
 async function runConnectedNodes(edgeId) {
   const edge = $edges.find(e => e.id === edgeId);
   if (!edge) return;
@@ -572,19 +585,19 @@ function buildGraph(nodes, edges) {
 
 
 
+  function updateCyclicEdges() {
+    const cycleEdges = detectCycles($nodes, $edges);
+    edges.update(eds => 
+      eds.map(edge => ({
+        ...edge,
+        data: {
+          ...edge.data,
+          showLoopCount: cycleEdges.has(edge.id)
+        }
+      }))
+    );
+  }
 
-function updateEdgeLabels() {
-  const cycleEdges = detectCycles($nodes, $edges);
-  console.log('Detected cycle edges:', cycleEdges);  // For debugging
-
-  edges.update(e => e.map(edge => ({
-    ...edge,
-    data: {
-      ...edge.data,
-      endLabel: cycleEdges.has(edge.id) ? 'Loops remaining: 2' : ''
-    }
-  })));
-}
 
 </script>
 

@@ -77,6 +77,29 @@
     };
   });
 
+
+  let loopCount = data?.loopCount ?? 2;
+
+  function incrementLoopCount() {
+    loopCount++;
+    if (data && typeof data.updateEdgeData === 'function') {
+      data.updateEdgeData(id, { loopCount });
+    }
+  }
+
+  function decrementLoopCount() {
+    if (loopCount > 0) {
+      loopCount--;
+      if (data && typeof data.updateEdgeData === 'function') {
+        data.updateEdgeData(id, { loopCount });
+      }
+    }
+  }
+
+
+  $: loopCountX = targetX - 100; // Move 100 pixels to the left of the target node
+  $: loopCountY = targetY - 30; // Move 30 pixels above the target node
+  
   let path: string;
   $: {
     if (sourceX > targetX) {
@@ -124,17 +147,16 @@
     marker-end={markerEnd}
   />
 
-
   {#if isHovered}
     <g transform={`translate(${(sourceX + targetX) / 2 - 40}, ${(sourceY + targetY) / 2 - 20})`}>
       <rect x="0" y="0" width="80" height="40" rx="5" ry="5" fill="white" stroke="black" />
-      
+
       <!-- Play button -->
       <g on:click|stopPropagation={onPlay} style="cursor: pointer;">
         <rect x="5" y="5" width="30" height="30" rx="3" ry="3" fill="#4CAF50" />
         <path d="M15 10l15 10-15 10V10z" fill="white" />
       </g>
-      
+
       <!-- Delete button -->
       <g on:click|stopPropagation={onDelete} style="cursor: pointer;">
         <rect x="45" y="5" width="30" height="30" rx="3" ry="3" fill="#F44336" />
@@ -143,29 +165,22 @@
     </g>
   {/if}
 
-  {#if data && data.endLabel}
-  <g transform={`translate(${targetX}, ${targetY})`}>
-    <rect
-      x="-50"
-      y="-25"
-      width="100"
-      height="20"
-      rx="5"
-      ry="5"
-      fill="white"
-      stroke="black"
-    />
-    <text
-      x="0"
-      y="-13"
-      text-anchor="middle"
-      dominant-baseline="middle"
-      font-size="12"
-    >
-      {data.endLabel}
-    </text>
-  </g>
-{/if}
+
+
+  {#if data && data.showLoopCount}
+    <g transform={`translate(${loopCountX}, ${loopCountY})`}>
+      <circle cx="0" cy="0" r="30" fill="#E0E0E0"/>
+      <text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="16" font-weight="bold">{loopCount}</text>
+      <g on:click|stopPropagation={decrementLoopCount} style="cursor: pointer;">
+        <circle cx="-40" cy="0" r="10" fill="#4CAF50" />
+        <path d="M-44 0h8" stroke="white" stroke-width="2" />
+      </g>
+      <g on:click|stopPropagation={incrementLoopCount} style="cursor: pointer;">
+        <circle cx="40" cy="0" r="10" fill="#4CAF50" />
+        <path d="M36 0h8M40 -4v8" stroke="white" stroke-width="2" />
+      </g>
+    </g>
+  {/if}
 
 </g>
 

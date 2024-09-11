@@ -1,0 +1,30 @@
+
+# 2024-09-09 10:34:37.309185
++aider App.svelte CustomEdge.svelte
+
+# 2024-09-09 10:42:49.802748
++export OPENROUTER_API_KEY=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
+
+# 2024-09-09 10:43:54.452795
++aider --cache-prompts
+
+# 2024-09-09 10:45:14.419355
++/ls
+
+# 2024-09-09 10:45:30.318219
++/add src/App.svelte
+
+# 2024-09-09 10:45:36.200608
++/add src/Cus
+
+# 2024-09-09 10:45:55.469090
++add src/CustomEdge.svelte
+
+# 2024-09-09 10:46:51.037126
++/settings
+
+# 2024-09-09 10:48:47.404499
++Currently the edge at the end of the loop only has a message. i want it instead to be a field with up and down button. Default is 2. It should say "Loops remaining"
+
+# 2024-09-09 10:50:00.018489
++I dont want it to appear at every edge. Only those at the end of loops like the previous version

@@ -1,0 +1,42 @@
+Svelte flow API reference
+• <SvelteFlow /> component:
+  - Key props: nodes, edges, nodeTypes, edgeTypes, onConnect, onEdgeUpdate, onNodesChange, onEdgesChange
+  - Viewport props: fitView, minZoom, maxZoom
+  - Interaction props: nodesDraggable, nodesConnectable, elementsSelectable
+
+• useSvelteFlow() hook:
+  - Key functions: getNode, getNodes, getEdge, getEdges, setNodes, setEdges, addNodes, addEdges, removeNodes, removeEdges, updateNode, updateEdge
+
+• useNodes() and useEdges() hooks:
+  - Return Writable<Node[]> and Writable<Edge[]> respectively
+
+• Node type:
+  - Key properties: id, type, data, position, draggable, connectable, selectable
+
+• Edge type:
+  - Key properties: id, source, target, type, animated, label, data
+
+• Custom Node components:
+  - Receive NodeProps
+  - Can use 'nodrag' and 'nowheel' classes for internal elements
+
+• Custom Edge components:
+  - Receive EdgeProps
+  - Can use <EdgeLabelRenderer /> for complex labels
+
+• Utility functions:
+  - addEdge(): For adding edges safely
+  - getConnectedEdges(): To find edges connected to specific nodes
+  - isNode() and isEdge(): Type guards for nodes and edges
+
+• Event handlers:
+  - onNodesChange, onEdgesChange: For updating nodes and edges
+  - onConnect: For handling new connections
+  - onEdgeUpdate: For handling edge updates
+
+• Advanced features:
+  - useUpdateNodeInternals(): For updating node internals (e.g., handle positions)
+  - getIntersectingNodes(): To find nodes intersecting with a given area
+
+• Viewport manipulation:
+  - fitView(), zoomIn(), zoomOut(), setViewport()
