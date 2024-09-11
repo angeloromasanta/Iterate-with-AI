@@ -46,7 +46,7 @@
 
   function createEdge(params: any) {
     const edgeId = params.id || `e${params.source}-${params.target}`;
-    return {
+    const newEdge = {
       ...params,
       id: edgeId,
       type: 'custom',
@@ -58,11 +58,14 @@
         onPlay: () => runConnectedNodes(edgeId),
         onDelete: (id: string) => deleteEdge(id),
         updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
-        showLoopCount: false,
-        loopCount: 2
+        showLoopCount: false
       }
     };
+    return newEdge;
   }
+
+
+
 
 
   function deleteEdge(id: string) {
@@ -71,13 +74,17 @@
   }
 
   function updateEdgeData(id: string, newData: any) {
-    edges.update(eds => 
-      eds.map(edge => 
+    console.log(`Updating edge data for edge ${id}`, { newData });
+    edges.update(eds => {
+      const updatedEdges = eds.map(edge => 
         edge.id === id 
           ? {...edge, data: {...edge.data, ...newData}} 
           : edge
-      )
-    );
+      );
+      console.log('Updated edges', updatedEdges);
+      return updatedEdges;
+    });
+    updateCyclicEdges();
   }
 
 
@@ -87,18 +94,16 @@
     let newEdge;
     edges.update(eds => {
       newEdge = createEdge({
-        id: `e${params.source}-${params.target}`,
         source: params.source,
         target: params.target
       });
+      console.log('Adding new edge:', newEdge);
       return [...eds, newEdge];
     });
 
-    // Update cyclic edges after adding the new edge
     updateCyclicEdges();
-
-    setTimeout(forceEdgeUpdate, 100);
   }
+
 
 
 
@@ -366,19 +371,26 @@ async function runConnectedNodes(edgeId) {
   }
 
   function getLoopCounts(edges, cycles) {
+    console.log('Getting loop counts', { edges, cycles });
     const loopCounts = new Map();
     for (const cycle of cycles) {
-      for (const node of cycle) {
-        const edge = edges.find(e => cycle.has(e.source) && cycle.has(e.target) && e.target === node);
-        if (edge && edge.data && edge.data.loopCount) {
-          loopCounts.set(node, edge.data.loopCount);
-        } else {
-          loopCounts.set(node, 2); // Default to 2 if not specified
-        }
+      const cycleArray = Array.from(cycle);
+      const lastNode = cycleArray[cycleArray.length - 1];
+      const firstNode = cycleArray[0];
+      const loopEdge = edges.find(e => e.source === lastNode && e.target === firstNode);
+      console.log('Checking loop edge', { lastNode, firstNode, loopEdge });
+      if (loopEdge && loopEdge.data && typeof loopEdge.data.loopCount === 'number') {
+        loopCounts.set(firstNode, loopEdge.data.loopCount);
+        console.log(`Set loop count for node ${firstNode} to ${loopEdge.data.loopCount}`);
+      } else {
+        loopCounts.set(firstNode, 2); // Default to 2 if not specified
+        console.log(`Set default loop count for node ${firstNode} to 2`);
       }
     }
+    console.log('Calculated loop counts', loopCounts);
     return loopCounts;
   }
+
 
   async function onBigButtonClick() {
     console.log("Starting onBigButtonClick");
@@ -390,6 +402,7 @@ async function runConnectedNodes(edgeId) {
     const cycles = findAllCycleNodes(graph);
     const dependencies = findDependencies(graph, cycles);
     const loopCounts = getLoopCounts(allEdges, cycles);
+
 
     console.log("Graph:", graph);
     console.log("Cycles:", cycles);
@@ -432,6 +445,7 @@ async function runConnectedNodes(edgeId) {
         maxVisits = 1;
       }
 
+
       if (visited.get(nodeId) >= maxVisits) {
         console.log(`${indent}Node ${nodeId} already visited ${visited.get(nodeId)} times, max is ${maxVisits}`);
         return;
@@ -450,16 +464,16 @@ async function runConnectedNodes(edgeId) {
         dfs(neighbor, depth + 1, loopEnd);
       }
 
-      if (nodeId === loopEnd && visited.get(nodeId) < maxVisits) {
-        console.log(`${indent}Revisiting cycle ending at node ${nodeId}`);
-        const cycle = Array.from(cycles).find(c => c.has(nodeId));
-        const startNode = Array.from(cycle)[0];
-        for (const cycleNode of cycle) {
-          visited.set(cycleNode, 0);
+       if (nodeId === loopEnd && visited.get(nodeId) < maxVisits) {
+          console.log(`${indent}Revisiting cycle ending at node ${nodeId}`);
+          const cycle = Array.from(cycles).find(c => c.has(nodeId));
+          const startNode = Array.from(cycle)[0];
+          for (const cycleNode of cycle) {
+            visited.set(cycleNode, 0);
+          }
+          dfs(startNode, depth, loopEnd);
         }
-        dfs(startNode, depth, loopEnd);
       }
-    }
 
     // Start with nodes that have no dependencies
     const startNodes = nodes.filter(node => !(dependencies[node.id] && dependencies[node.id].size));
@@ -679,16 +693,21 @@ async function runConnectedNodes(edgeId) {
 
   function updateCyclicEdges() {
     const cycleEdges = detectCycles($nodes, $edges);
-    edges.update(eds => 
-      eds.map(edge => ({
+    edges.update(eds => {
+      const updatedEdges = eds.map(edge => ({
         ...edge,
         data: {
           ...edge.data,
-          showLoopCount: cycleEdges.has(edge.id)
+          showLoopCount: cycleEdges.has(edge.id),
+          loopCount: cycleEdges.has(edge.id) ? (edge.data.loopCount || 2) : undefined
         }
-      }))
-    );
+      }));
+      return updatedEdges;
+    });
   }
+
+
+
 
 
 </script>

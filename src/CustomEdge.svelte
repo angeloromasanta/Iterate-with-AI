@@ -80,8 +80,12 @@
 
   let loopCount = data?.loopCount ?? 2;
 
+
+  console.log(`CustomEdge rendered for edge ${id}`, { data });
+
   function incrementLoopCount() {
     loopCount++;
+    console.log(`Incrementing loop count for edge ${id}`, { newLoopCount: loopCount });
     if (data && typeof data.updateEdgeData === 'function') {
       data.updateEdgeData(id, { loopCount });
     }
@@ -90,12 +94,22 @@
   function decrementLoopCount() {
     if (loopCount > 0) {
       loopCount--;
+      console.log(`Decrementing loop count for edge ${id}`, { newLoopCount: loopCount });
       if (data && typeof data.updateEdgeData === 'function') {
         data.updateEdgeData(id, { loopCount });
       }
     }
   }
 
+  $: {
+    console.log(`Loop count changed for edge ${id}`, { loopCount });
+  }
+
+  function updateLoopCount() {
+    if (data && typeof data.updateEdgeData === 'function') {
+      data.updateEdgeData(id, { loopCount });
+    }
+  }
 
   $: loopCountX = targetX - 40; // Move 100 pixels to the left of the target node
   $: loopCountY = targetY - 0; // Move 30 pixels above the target node
