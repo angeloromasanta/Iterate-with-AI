@@ -699,7 +699,7 @@ async function runConnectedNodes(edgeId) {
         data: {
           ...edge.data,
           showLoopCount: cycleEdges.has(edge.id),
-          loopCount: cycleEdges.has(edge.id) ? (edge.data.loopCount || 2) : undefined
+          loopCount: cycleEdges.has(edge.id) ? (edge.data?.loopCount || 2) : undefined
         }
       }));
       return updatedEdges;
