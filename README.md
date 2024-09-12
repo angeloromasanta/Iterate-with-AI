@@ -1,47 +1,46 @@
-# Svelte + Vite
+# AI-Powered Node-Based UI
+This project is an interactive, AI-powered node-based user interface built with Svelte and Vite. It allows users to create, connect, and process nodes in a visual flow, with AI-assisted content generation.
+## Features
+- Interactive node-based UI using [@xyflow/svelte](rag://rag_source_3)
+- AI-powered content generation using OpenRouter API
+- Dynamic node creation and connection
+- Cycle detection and handling in node connections
+- Save and load functionality for created flows
+- Responsive design with custom controls
+## Getting Started
+### Prerequisites
+- Node.js (version specified in your project)
+- An OpenRouter API key
+### Installation
+1. Clone the repository
+2. Install dependencies:
+npm install
 
-This template should help get you started developing with Svelte in Vite.
+3. Create a `.env` file in the root directory and add your OpenRouter API key:
+VITE_OPENROUTER_API_KEY=your_api_key_here
 
-## Recommended IDE Setup
+### Running the Application
+To start the development server:
+npm run dev
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+To build for production:
+npm run build
 
-## Need an official Svelte framework?
+To preview the production build:
+npm run preview
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
-
-## Technical considerations
-
-**Why use this over SvelteKit?**
-
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
-
-This template contains as little as possible to get started with Vite + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
-
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
-
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
-
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
-
-**Why include `.vscode/extensions.json`?**
-
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
-
-**Why enable `checkJs` in the JS template?**
-
-It is likely that most cases of changing variable types in runtime are likely to be accidental, rather than deliberate. This provides advanced typechecking out of the box. Should you like to take advantage of the dynamically-typed nature of JavaScript, it is trivial to change the configuration.
-
-**Why is HMR not preserving my local component state?**
-
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/sveltejs/svelte-hmr/tree/master/packages/svelte-hmr#preservation-of-local-state).
-
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```js
-// store.js
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
-```
+## Usage
+- Click on the canvas to create new nodes
+- Connect nodes by dragging from one node's handle to another
+- Use the big button (⚡️) to process the entire flow
+- Save and load your flows using the panel at the bottom of the screen
+## Technical Details
+- Built with [Svelte](rag://rag_source_3) and [Vite](rag://rag_source_3)
+- Uses [@xyflow/svelte](rag://rag_source_3) for the node-based UI
+- Integrates with OpenRouter API for AI-powered content generation
+- Implements custom cycle detection and handling for node connections
+- Utilizes Svelte stores for state management
+## Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+## License
+This project is open-source. Please check the repository for license details.
