@@ -1,4 +1,4 @@
-# AI-Powered Node-Based UI
+# Iterate with AI (A Node-Based UI for AI)
 This project is an interactive, AI-powered node-based user interface built with Svelte and Vite. It allows users to create, connect, and process nodes in a visual flow, with AI-assisted content generation.
 ## Features
 - Interactive node-based UI using [@xyflow/svelte](rag://rag_source_3)
