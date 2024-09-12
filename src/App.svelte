@@ -18,6 +18,7 @@
   import TextNode from './TextNode.svelte';
   import ResultNode from './ResultNode.svelte';
   import CustomEdge from './CustomEdge.svelte';
+  import SaveLoadPanel from './SaveLoadPanel.svelte';
 
 
   console.log('onConnect function:', onConnect);
@@ -410,32 +411,51 @@ async function runConnectedNodes(edgeId) {
     return loopCounts;
   }
 
+  let isRunning = false;
+  let shouldStop = false;
 
   async function onBigButtonClick() {
-    console.log("Starting onBigButtonClick");
-    processing = true;
-    let allNodes = $nodes;
-    let allEdges = $edges;
-
-    const graph = buildGraph(allNodes, allEdges);
-    const cycles = findAllCycleNodes(graph);
-    const dependencies = findDependencies(graph, cycles);
-    const loopCounts = getLoopCounts(allEdges, cycles);
-
-
-    console.log("Graph:", graph);
-    console.log("Cycles:", cycles);
-    console.log("Dependencies:", dependencies);
-    console.log("Loop counts:", loopCounts);
-
-    const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
-    console.log("Execution order:", executionOrder);
-
-    for (const nodeId of executionOrder) {
-      await processNode(nodeId);
+    if (isRunning) {
+      shouldStop = true;
+      return;
     }
 
-    processing = false;
+    console.log("Starting onBigButtonClick");
+    isRunning = true;
+    shouldStop = false;
+    processing = true;
+
+    try {
+      let allNodes = $nodes;
+      let allEdges = $edges;
+
+      const graph = buildGraph(allNodes, allEdges);
+      const cycles = findAllCycleNodes(graph);
+      const dependencies = findDependencies(graph, cycles);
+      const loopCounts = getLoopCounts(allEdges, cycles);
+
+      console.log("Graph:", graph);
+      console.log("Cycles:", cycles);
+      console.log("Dependencies:", dependencies);
+      console.log("Loop counts:", loopCounts);
+
+      const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
+      console.log("Execution order:", executionOrder);
+
+      for (const nodeId of executionOrder) {
+        if (shouldStop) {
+          console.log("Execution stopped by user");
+          break;
+        }
+        await processNode(nodeId);
+      }
+    } catch (error) {
+      console.error("Error during execution:", error);
+    } finally {
+      isRunning = false;
+      shouldStop = false;
+      processing = false;
+    }
   }
 
   function calculateExecutionOrder(nodes, graph, dependencies, cycles, loopCounts) {
@@ -728,6 +748,14 @@ async function runConnectedNodes(edgeId) {
     });
   }
 
+
+  function handleImport(event) {
+    const importedData = event.detail;
+    nodes.set(importedData.nodes);
+    edges.set(importedData.edges);
+    updateCyclicEdges();
+  }
+  
   function handleConnect(event) {
     console.log('Connect event fired:', event.detail);
     const params = event.detail;
@@ -752,11 +780,21 @@ async function runConnectedNodes(edgeId) {
     return newEdge;
   }
 
+  function handleClear() {
+    nodes.set([]);
+    edges.set([]);
+    updateCyclicEdges();
+  }
+  
+  let saveLoadPanelHeight = 150; // Default height
+
+  function handlePanelResize(event) {
+    saveLoadPanelHeight = event.detail.height;
+  }
   
 </script>
 
-
-<main>
+<main style="height: calc(100vh - {saveLoadPanelHeight}px);">
   <SvelteFlow
     {nodes}
     {edges}
@@ -771,12 +809,26 @@ async function runConnectedNodes(edgeId) {
     <Background variant={BackgroundVariant.Dots} />
 
     <div class="custom-controls">
-      <button class="custom-button" on:click={onBigButtonClick} class:processing>
-        ⚡️
+      <button class="custom-button" on:click={onBigButtonClick} class:processing={isRunning}>
+        {#if isRunning}
+          ⏹️
+        {:else}
+          ⚡️
+        {/if}
       </button>
     </div>
   </SvelteFlow>
 </main>
+
+<SaveLoadPanel 
+  nodes={$nodes} 
+  edges={$edges} 
+  on:import={handleImport} 
+  on:clear={handleClear}
+  on:resize={handlePanelResize} 
+/>
+
+
 <style>
  :global(body) {
     margin: 0;
@@ -838,6 +890,7 @@ async function runConnectedNodes(edgeId) {
   .custom-button.processing {
     animation: pulse 1s infinite;
   }
+  
 
   @keyframes pulse {
     0% {
