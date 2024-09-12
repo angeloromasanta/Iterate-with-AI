@@ -5,7 +5,84 @@ Svelte flow API reference
   - Interaction props: nodesDraggable, nodesConnectable, elementsSelectable
 
 • useSvelteFlow() hook:
-  - Key functions: getNode, getNodes, getEdge, getEdges, setNodes, setEdges, addNodes, addEdges, removeNodes, removeEdges, updateNode, updateEdge
+Source on GitHub
+
+This hook returns functions to update the viewport, transform positions or get node intersections for example.
+
+<script lang="ts">
+  import { useSvelteFlow } from '@xyflow/svelte';
+
+  const { screenToFlowPosition, zoomIn } = useSvelteFlow();
+</script>
+Signature
+Name	Type
+#Returns
+#getNode
+(id: string) => Node | undefined
+Returns a node by id.
+#getNodes
+(nodeIds?: string[]) => Node[]
+Returns all nodes if no ids are passed or the nodes of the passed ids.
+#getInternalNode
+(id: string) => InternalNode | undefined
+Returns an internal node by id.
+#getEdge
+(id: string) => Edge | undefined
+Returns an edge by id.
+#getEdges
+(edgeIds?: string[]) => Node[]
+Returns all edges if no ids are passed or the edges of the passed ids.
+#zoomIn
+Function
+#zoomIn
+Function
+#zoomOut
+Function
+#setZoom
+(zoomLevel: number, options?: ViewportHelperFunctionOptions) => void
+#getZoom
+() => number
+#setCenter
+(x: number, y: number, options?: SetCenterOptions) => void
+#setViewport
+(viewport: Viewport, options?: ViewportHelperFunctionOptions) => void
+#getViewport
+() => Viewport
+#fitView
+(options?: FitViewOptions) => void
+#getNodesBounds
+(nodes: (NodeType | InternalNode | string)[]) => Rect
+Returns the bounds of the given nodes or node ids.
+#getIntersectingNodes
+( nodeOrRect: Node | { id: string } | Rect, partially?: boolean, nodesToIntersect?: Node[] ) => Node[]
+#isNodeIntersecting
+( nodeOrRect: Node | { id: string } | Rect, area: Rect, partially?: boolean ) => boolean
+#fitBounds
+(bounds: Rect, options?: FitBoundsOptions) => void
+#deleteElements
+async ({ nodes, edges }: { nodes?: Node[] | { id: string }[], edges?: Edge[] | { id: string }[] }) => { deletedNodes: Node[]; deletedEdges: Edge[] }
+Helper function to remove nodes and edges that also deletes connected edges and child nodes.
+#screenToFlowPosition
+(position: XYPosition) => XYPosition
+Transforms a screen position to a Svelte position.
+#flowToScreenPosition
+(position: XYPosition) => XYPosition
+Transforms a Svelte position to a screen position.
+#updateNode
+(id: string, node: Node | (node: Node) => Partial<Node>, options?: { replace: boolean }) => void
+Function for updating a node. The passed node or function result gets merged into to the existing node. You can change that behaviour and replace the node by passing `options.replace = true`.
+#updateNodeData
+(id: string, data: object | (node: Node) => object, options?: { replace: boolean }) => void
+Function for updating node data. The passed data or function result gets merged into to the existing node data. You can change that behaviour and replace the node by passing `options.replace = true`.
+#toObject
+() => { nodes: Node[]; edges: Edge[]; viewport: Viewport };
+This function returns a JSON representation of your current Svelte Flow graph.
+#getHandleConnections
+({ type, nodeId, id }: { type: HandleType, nodeId: string, id?: string | null }) => HandleConnection[]
+Get all the connections of a handle belonging to a specific node. The type parameter be either 'source' or 'target'.
+Last updated o
+
+
 
 • useNodes() and useEdges() hooks:
   - Return Writable<Node[]> and Writable<Edge[]> respectively
