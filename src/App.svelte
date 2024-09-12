@@ -20,7 +20,24 @@
   import CustomEdge from './CustomEdge.svelte';
 
 
+  console.log('onConnect function:', onConnect);
 
+  import { onMount } from 'svelte';
+
+  onMount(() => {
+    window.addEventListener('edgeAdded', (event) => {
+      console.log('Edge added event:', event.detail);
+    });
+  });
+
+
+  $: {
+    if ($edges) {
+      console.log('Edges updated:', $edges.map(edge => ({...edge, data: {...edge.data}})));
+      updateCyclicEdges();
+    }
+  }
+  
   const defaultEdgeOptions = {
     markerEnd: {
       type: MarkerType.ArrowClosed,
@@ -44,9 +61,9 @@
 
 
 
-  function createEdge(params: any) {
+  function createEdge(params: any): Edge {
     const edgeId = params.id || `e${params.source}-${params.target}`;
-    const newEdge = {
+    const newEdge: Edge = {
       ...params,
       id: edgeId,
       type: 'custom',
@@ -58,9 +75,11 @@
         onPlay: () => runConnectedNodes(edgeId),
         onDelete: (id: string) => deleteEdge(id),
         updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
-        showLoopCount: false
+        showLoopCount: false,
+        loopCount: 2
       }
     };
+    console.log('Created new edge:', newEdge);
     return newEdge;
   }
 
@@ -74,38 +93,38 @@
   }
 
   function updateEdgeData(id: string, newData: any) {
-    console.log(`Updating edge data for edge ${id}`, { newData });
-    edges.update(eds => {
-      const updatedEdges = eds.map(edge => 
+    console.log(`Updating edge data for edge ${id}`, newData);
+    edges.update(eds => 
+      eds.map(edge => 
         edge.id === id 
-          ? {...edge, data: {...edge.data, ...newData}} 
+          ? { ...edge, data: { ...edge.data, ...newData } }
           : edge
-      );
-      console.log('Updated edges', updatedEdges);
-      return updatedEdges;
-    });
-    updateCyclicEdges();
+      )
+    );
   }
-
 
 
 
   function onConnect(params: any) {
-    let newEdge;
+    console.log('onConnect called with params:', params);
     edges.update(eds => {
-      newEdge = createEdge({
+      const newEdge = createEdge({
+        id: `e${params.source}-${params.target}`,
         source: params.source,
         target: params.target
       });
-      console.log('Adding new edge:', newEdge);
+      console.log('New edge created:', newEdge);
       return [...eds, newEdge];
     });
-
-    updateCyclicEdges();
   }
 
 
-
+  $: {
+    if ($edges) {
+      console.log('Edges updated:', $edges);
+      updateCyclicEdges();
+    }
+  }
 
 
   let nodes = writable<Node[]>([
@@ -692,7 +711,9 @@ async function runConnectedNodes(edgeId) {
 
 
   function updateCyclicEdges() {
+    console.log('updateCyclicEdges called');
     const cycleEdges = detectCycles($nodes, $edges);
+    console.log('Detected cycle edges:', cycleEdges);
     edges.update(eds => {
       const updatedEdges = eds.map(edge => ({
         ...edge,
@@ -702,28 +723,50 @@ async function runConnectedNodes(edgeId) {
           loopCount: cycleEdges.has(edge.id) ? (edge.data?.loopCount || 2) : undefined
         }
       }));
+      console.log('Updated edges in updateCyclicEdges:', updatedEdges);
       return updatedEdges;
     });
   }
 
+  function handleConnect(event) {
+    console.log('Connect event fired:', event.detail);
+    const params = event.detail;
+    const newEdge = createEdge({
+      id: `e${params.source}-${params.target}`,
+      source: params.source,
+      target: params.target
+    });
+    console.log('New edge created:', newEdge);
+    edges.update(eds => [...eds, newEdge]);
+  }
 
+  function handleEdgeCreate(connection: Connection): Edge {
+    console.log('Edge create event fired:', connection);
+    const newEdge = createEdge({
+      id: `e${connection.source}-${connection.target}`,
+      source: connection.source,
+      target: connection.target
+    });
+    console.log('New edge created:', newEdge);
+    edges.update(eds => [...eds, newEdge]);
+    return newEdge;
+  }
 
-
-
+  
 </script>
 
 
 <main>
   <SvelteFlow
-  {nodes}
-  {edges}
-  {nodeTypes}
-  {edgeTypes}
-  {defaultEdgeOptions}
-  fitView
-  on:paneclick={onPaneClick}
-  on:connect={({ detail }) => onConnect(detail)}
->
+    {nodes}
+    {edges}
+    {nodeTypes}
+    {edgeTypes}
+    {defaultEdgeOptions}
+    fitView
+    on:paneclick={onPaneClick}
+    onedgecreate={handleEdgeCreate}
+  >
     <Controls />
     <Background variant={BackgroundVariant.Dots} />
 

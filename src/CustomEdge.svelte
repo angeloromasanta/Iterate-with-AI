@@ -29,6 +29,9 @@
   export let targetHandleId = null;
   export let markerStart = null;
 
+  $: {
+    console.log(`CustomEdge received new props for edge ${id}:`, { data, source, target });
+  }
   
   $: [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -106,8 +109,11 @@
   }
 
   function updateLoopCount() {
+    console.log(`Attempting to update loop count for edge ${id}`);
     if (data && typeof data.updateEdgeData === 'function') {
       data.updateEdgeData(id, { loopCount });
+    } else {
+      console.warn(`Unable to update loop count for edge ${id}. updateEdgeData is not available.`);
     }
   }
 
