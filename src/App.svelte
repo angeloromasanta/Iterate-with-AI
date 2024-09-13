@@ -387,6 +387,12 @@ async function runConnectedNodes(edgeId) {
   }
 
 
+
+  function deleteNode(id: string) {
+    nodes.update(n => n.filter(node => node.id !== id));
+    edges.update(e => e.filter(edge => edge.source !== id && edge.target !== id));
+  }
+
   
   
 
@@ -563,15 +569,14 @@ async function runConnectedNodes(edgeId) {
         dfs(neighbor, depth + 1, loopEnd);
       }
 
-       if (nodeId === loopEnd && visited.get(nodeId) < maxVisits) {
+      if (nodeId === loopEnd && visited.get(nodeId) < maxVisits) {
           console.log(`${indent}Revisiting cycle ending at node ${nodeId}`);
           const cycle = Array.from(cycles).find(c => c.has(nodeId));
-          const startNode = Array.from(cycle)[0];
           for (const cycleNode of cycle) {
-            visited.set(cycleNode, 0);
+              visited.set(cycleNode, 0);  // Only reset nodes that haven't reached max visits
           }
-          dfs(startNode, depth, loopEnd);
-        }
+          dfs(cycle[0], depth, loopEnd);  // Start from the first node in the cycle
+      }
       }
 
     // Start with nodes that have no dependencies
@@ -705,14 +710,8 @@ async function runConnectedNodes(edgeId) {
 
 
 
-
-  function deleteNode(id: string) {
-    nodes.update(n => n.filter(node => node.id !== id));
-    edges.update(e => e.filter(edge => edge.source !== id && edge.target !== id));
-  }
-
   
-  function detectCycles(nodes, edges) {
+  function detectCycleEndEdges(nodes, edges) {
   const graph = new Map();
   nodes.forEach(node => graph.set(node.id, []));
   edges.forEach(edge => {
@@ -762,7 +761,7 @@ async function runConnectedNodes(edgeId) {
 
   function updateCyclicEdges() {
 
-    const cycleEdges = detectCycles($nodes, $edges);
+    const cycleEdges = detectCycleEndEdges($nodes, $edges);
 
     edges.update(eds => {
       const updatedEdges = eds.map(edge => ({
