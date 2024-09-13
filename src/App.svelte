@@ -14,7 +14,9 @@
     type NodeTypes,
     type Edge,
     type EdgeTypes,
-    SvelteFlowProvider
+    SvelteFlowProvider,
+    type OnConnectEnd,
+    type OnConnectStart
   } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { getLLMResponse } from './api';
@@ -283,8 +285,10 @@ async function runConnectedNodes(edgeId) {
 }
 
 
-
   let processing = false;
+  let isCreatingNodeViaDrag = false;
+  let lastClickTime = 0;
+  const clickThreshold = 200; // milliseconds
 
   // Create a derived store for the highest node ID
   const highestNodeId = derived(nodes, $nodes => {
@@ -328,16 +332,49 @@ async function runConnectedNodes(edgeId) {
 
   const { screenToFlowPosition } = useSvelteFlow();
 
+  const handleConnectStart: OnConnectStart = (event) => {
+    isCreatingNodeViaDrag = true;
+  };
+
+  const handleConnectEnd: OnConnectEnd = (event, connectionState) => {
+    if (connectionState.isValid) {
+      isCreatingNodeViaDrag = false;
+      return;
+    }
+
+    const sourceNodeId = connectionState.fromNode?.id ?? '1';
+    const id = getId();
+    const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
+    const newNode: Node = {
+      id,
+      type: 'text',
+      data: { label: getNewNodeLabel(), text: 'Insert prompt here.' },
+      position: screenToFlowPosition({
+        x: clientX,
+        y: clientY
+      }),
+      origin: [0.5, 0.0]
+    };
+
+    nodes.update(n => [...n, newNode]);
+    edges.update(e => [...e, createEdge({
+      id: `e${sourceNodeId}-${id}`,
+      source: sourceNodeId,
+      target: id
+    })]);
+
+    isCreatingNodeViaDrag = false;
+    lastClickTime = Date.now(); // Set the last click time
+  };
+
   function onPaneClick(event) {
-    // Extract the original event from the custom event
+    const currentTime = Date.now();
+    if (isCreatingNodeViaDrag || (currentTime - lastClickTime < clickThreshold)) {
+      return;
+    }
+
     const { clientX, clientY } = event.detail.event;
-
-    // Convert screen coordinates to flow coordinates
     const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
-
-    console.log('Click position:', { clientX, clientY });
-    console.log('Flow position:', flowPosition);
-
     const newNode = {
       id: getId(),
       type: 'text',
@@ -346,25 +383,12 @@ async function runConnectedNodes(edgeId) {
     };
 
     nodes.update(n => [...n, newNode]);
+    lastClickTime = currentTime; // Update the last click time
   }
 
-  function forceEdgeUpdate() {
-  edges.update(currentEdges => {
-    return currentEdges.map(edge => ({
-      ...edge,
-      type: 'custom',
-      animated: edge.animated || false, // Add this line
-      data: {
-        ...edge.data,
-        onPlay: () => runConnectedNodes(edge.id),
-        onDelete: (id: string) => deleteEdge(id)
-      }
-    }));
-  });
-}
 
-  // Call forceEdgeUpdate periodically
-  setInterval(forceEdgeUpdate, 2000);
+  
+  
 
   function findAllCycleNodes(graph) {
     const visited = new Set();
@@ -823,6 +847,7 @@ async function runConnectedNodes(edgeId) {
           fitView
           on:paneclick={onPaneClick}
           onedgecreate={handleEdgeCreate}
+          onconnectend={handleConnectEnd}
         >
       <Controls />
       <Background variant={BackgroundVariant.Dots} />

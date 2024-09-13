@@ -1,14 +1,9 @@
-<!-- ResultNode.svelte -->
 <script lang="ts">
-  import {
-    Handle,
-    Position,
-    type NodeProps,
-    useSvelteFlow
-  } from '@xyflow/svelte';
+  import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
+  import { Copy, Minimize2, Maximize2, Check, Trash2 } from 'lucide-svelte';
+  import { onMount } from 'svelte';
 
   type $$Props = NodeProps;
-
   export let id: $$Props['id'];
   export let data: $$Props['data'];
 
@@ -18,26 +13,112 @@
     data.label = 'Result Node';
   }
 
+  let isMinimized = false;
+  let containerWidth = 200;
+  let containerHeight = 60;
+  let isResizing = false;
+  let resizeStartX: number;
+  let resizeStartY: number;
+  let initialWidth: number;
+  let initialHeight: number;
+  let copySuccess = false;
+
+  onMount(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  });
+
   function updateLabel(event) {
     updateNode(id, { data: { ...data, label: event.target.value } });
   }
 
   function changeNodeType(event) {
-  updateNode(id, { type: event.target.value });
-}
+    updateNode(id, { type: event.target.value });
+  }
 
   function deleteNode() {
     deleteElements({ nodes: [{ id }] });
   }
+
+  async function copyResults() {
+    const resultText = data.results ? data.results.join('\n\n') : '';
+    try {
+      await navigator.clipboard.writeText(resultText);
+      copySuccess = true;
+      setTimeout(() => copySuccess = false, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  }
+
+  function toggleMinimize() {
+    isMinimized = !isMinimized;
+  }
+
+  function formatText(text) {
+    return text
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^\* (.*$)/gim, '<li>$1</li>')
+      .replace(/^(\d+\. .*$)/gim, '<ol><li>$1</li></ol>');
+  }
+
+  function handleResizeStart(event: MouseEvent) {
+    isResizing = true;
+    resizeStartX = event.clientX;
+    resizeStartY = event.clientY;
+    initialWidth = containerWidth;
+    initialHeight = containerHeight;
+    event.stopPropagation();
+  }
+
+  function handleMouseMove(event: MouseEvent) {
+    if (!isResizing) return;
+    const dx = event.clientX - resizeStartX;
+    const dy = event.clientY - resizeStartY;
+    containerWidth = Math.max(200, initialWidth + dx);
+    containerHeight = Math.max(60, initialHeight + dy);
+  }
+
+  function handleMouseUp() {
+    isResizing = false;
+  }
 </script>
 
-<div class="custom">
+<div class="custom" style="width: {containerWidth}px;">
   <Handle type="target" position={Position.Left} class="big-handle"/>
-  <div class="type-selector">
-    <select on:change={changeNodeType} value="result">
-      <option value="text">Text</option>
-      <option value="result">Result</option>
-    </select>
+  <div class="header">
+    <div class="type-selector">
+      <select on:change={changeNodeType} value="result">
+        <option value="text">Text</option>
+        <option value="result">Result</option>
+      </select>
+    </div>
+    <div class="buttons">
+      <button class="icon-button" on:click={copyResults} title="Copy results">
+        {#if copySuccess}
+          <Check size={14} color="#4CAF50" />
+        {:else}
+          <Copy size={14} />
+        {/if}
+      </button>
+      <button class="icon-button" on:click={toggleMinimize} title="Toggle minimize">
+        {#if isMinimized}
+          <Maximize2 size={14} />
+        {:else}
+          <Minimize2 size={14} />
+        {/if}
+      </button>
+      <button class="icon-button" on:click={deleteNode} title="Delete node">
+        <Trash2 size={14} />
+      </button>
+    </div>
   </div>
   <div class="label-container">
     <input
@@ -47,16 +128,20 @@
       placeholder="Enter label"
     />
   </div>
-  <div class="results-container">
-    {#if !data.results || data.results.length === 0}
-      <div>No results yet</div>
-    {:else}
-      {#each data.results as result}
-        <div class="result">{result}</div>
-      {/each}
-    {/if}
-  </div>
-  <button class="delete-button" on:click={deleteNode}>Delete</button>
+  {#if !isMinimized}
+    <div class="results-container" style="height: {containerHeight}px;">
+      {#if !data.results || data.results.length === 0}
+        <div>No results yet</div>
+      {:else}
+        {#each data.results as result}
+          <div class="result">
+            {@html formatText(result)}
+          </div>
+        {/each}
+      {/if}
+    </div>
+  {/if}
+  <div class="resize-handle" on:mousedown={handleResizeStart}></div>
   <Handle type="source" position={Position.Right} class="big-handle"/>
 </div>
 
@@ -65,16 +150,26 @@
     background-color: #eee;
     padding: 10px;
     border-radius: 10px;
-    font-size: 12px;
-    max-width: 300px;
-    overflow-wrap: break-word;
     position: relative;
+    min-width: 200px;
   }
-
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  .type-selector {
+    flex: 1;
+    margin-right: 10px;
+  }
+  .buttons {
+    display: flex;
+    align-items: center;
+  }
   .label-container {
     margin-bottom: 5px;
   }
-
   .label-input {
     font-size: 14px;
     font-weight: bold;
@@ -83,39 +178,40 @@
     background-color: transparent;
     outline: none;
   }
-
+  select {
+    width: 100%;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
   .results-container {
     margin-top: 5px;
+    overflow: auto;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 5px;
+    box-sizing: border-box;
   }
-
   .result {
     margin-bottom: 10px;
     padding: 5px;
     background-color: #fff;
     border-radius: 5px;
   }
-
-  .type-selector {
-    margin-bottom: 5px;
-  }
-
-  select {
-    width: 100%;
-    padding: 5px;
-    border-radius: 4px;
-  }
-
-  .delete-button {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background-color: #ff4136;
-    color: white;
+  .icon-button {
+    background: none;
     border: none;
-    border-radius: 3px;
-    padding: 2px 5px;
-    font-size: 12px;
     cursor: pointer;
+    padding: 2px;
+    margin-left: 5px;
+  }
+  .resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 10px;
+    height: 10px;
+    background-color: #888;
+    cursor: nwse-resize;
   }
 </style>
-

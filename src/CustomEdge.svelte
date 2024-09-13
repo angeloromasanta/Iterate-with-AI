@@ -119,17 +119,21 @@
       // If the source is to the right of the target (connecting to left side)
       const dx = Math.abs(sourceX - targetX);
       const dy = Math.abs(sourceY - targetY);
-      
+
+      // Determine if the source is above or below the target
+      const isSourceAbove = sourceY < targetY;
+
       // Calculate control points for a looping curve
       const controlPointOffsetX = dx * 0.3;
-      const controlPointOffsetY = Math.max(dy, 150) * (sourceY > targetY ? -1 : 1);
-      
+      const verticalFactor = 1.3; // Adjust this value to make the loop larger or smaller
+      const controlPointOffsetY = Math.max(dy, 150) * verticalFactor * (isSourceAbove ? -1 : 1);
+
       const sourceControlX = sourceX + controlPointOffsetX;
       const sourceControlY = sourceY + controlPointOffsetY;
-      
+
       const targetControlX = targetX - controlPointOffsetX;
       const targetControlY = targetY + controlPointOffsetY;
-      
+
       path = `M ${sourceX} ${sourceY} 
               C ${sourceControlX} ${sourceControlY}, 
                 ${targetControlX} ${targetControlY}, 
@@ -146,7 +150,6 @@
       });
     }
   }
-
 
 </script>
 
