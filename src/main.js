@@ -1,8 +1,7 @@
-import './app.css'
-import App from './App.svelte'
+import SvelteFlowWrapper from "./SvelteFlowWrapper.svelte";
 
-const app = new App({
-  target: document.getElementById('app'),
-})
+const app = new SvelteFlowWrapper({
+  target: document.body,
+});
 
-export default app
+export default app;

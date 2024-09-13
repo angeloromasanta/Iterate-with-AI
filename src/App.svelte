@@ -4,6 +4,7 @@
   import { writable, derived } from 'svelte/store';
   import {
     SvelteFlow,
+    useSvelteFlow,
     Controls,
     Background,
     BackgroundVariant,
@@ -12,7 +13,8 @@
     type Node,
     type NodeTypes,
     type Edge,
-    type EdgeTypes
+    type EdgeTypes,
+    SvelteFlowProvider
   } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { getLLMResponse } from './api';
@@ -324,18 +326,27 @@ async function runConnectedNodes(edgeId) {
   };
 
 
-  
+  const { screenToFlowPosition } = useSvelteFlow();
+
   function onPaneClick(event) {
+    // Extract the original event from the custom event
+    const { clientX, clientY } = event.detail.event;
+
+    // Convert screen coordinates to flow coordinates
+    const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
+
+    console.log('Click position:', { clientX, clientY });
+    console.log('Flow position:', flowPosition);
+
     const newNode = {
       id: getId(),
       type: 'text',
-      position: { x: 0, y: 0},
+      position: flowPosition,
       data: { label: getNewNodeLabel(), text: 'Insert prompt here.' }
     };
 
     nodes.update(n => [...n, newNode]);
   }
-
 
   function forceEdgeUpdate() {
   edges.update(currentEdges => {
@@ -802,31 +813,33 @@ async function runConnectedNodes(edgeId) {
   
 </script>
 
-<main style="height: calc(100vh - {saveLoadPanelHeight}px);">
-  <SvelteFlow
-    {nodes}
-    {edges}
-    {nodeTypes}
-    {edgeTypes}
-    {defaultEdgeOptions}
-    fitView
-    on:paneclick={onPaneClick}
-    onedgecreate={handleEdgeCreate}
-  >
-    <Controls />
-    <Background variant={BackgroundVariant.Dots} />
+      <main style="height: calc(100vh - {saveLoadPanelHeight}px);">
+        <SvelteFlow
+          {nodes}
+          {edges}
+          {nodeTypes}
+          {edgeTypes}
+          {defaultEdgeOptions}
+          fitView
+          on:paneclick={onPaneClick}
+          onedgecreate={handleEdgeCreate}
+        >
+      <Controls />
+      <Background variant={BackgroundVariant.Dots} />
 
-    <div class="custom-controls">
-      <button class="custom-button" on:click={onBigButtonClick} class:processing={isRunning}>
-        {#if isRunning}
-          ⏹️
-        {:else}
-          ⚡️
-        {/if}
-      </button>
-    </div>
-  </SvelteFlow>
-</main>
+      <div class="custom-controls">
+        <button class="custom-button" on:click={onBigButtonClick} class:processing={isRunning}>
+          {#if isRunning}
+            ⏹️
+          {:else}
+            ⚡️
+          {/if}
+        </button>
+      </div>
+    </SvelteFlow>
+  </main>
+
+  
 
 <SaveLoadPanel 
   nodes={$nodes} 
