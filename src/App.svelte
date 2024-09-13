@@ -24,7 +24,7 @@
   import ResultNode from './ResultNode.svelte';
   import CustomEdge from './CustomEdge.svelte';
   import SaveLoadPanel from './SaveLoadPanel.svelte';
-
+  import { loadTemplate } from './templateUtils';
 
   console.log('onConnect function:', onConnect);
 
@@ -834,6 +834,22 @@ async function runConnectedNodes(edgeId) {
   function handlePanelResize(event) {
     saveLoadPanelHeight = event.detail.height;
   }
+
+  async function handleLoadTemplate(event) {
+    const templateFile = event.detail;
+    try {
+      const templateData = await loadTemplate(templateFile);
+      nodes.set(templateData.nodes);
+      edges.set(templateData.edges);
+      updateCyclicEdges();
+
+      // Reset the new node counter after loading a template
+      nextNewNodeNumber.set(1);
+    } catch (error) {
+      console.error('Error loading template:', error);
+      alert('Failed to load template');
+    }
+  }
   
 </script>
 
@@ -872,6 +888,7 @@ async function runConnectedNodes(edgeId) {
   on:import={handleImport} 
   on:clear={handleClear}
   on:resize={handlePanelResize} 
+  on:loadTemplate={handleLoadTemplate}
 />
 
 

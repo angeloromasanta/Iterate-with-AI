@@ -1,6 +1,8 @@
+<!-- SaveLoadPanel.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Node, Edge } from '@xyflow/svelte';
+  import TemplateDropdown from './TemplateDropdown.svelte';
 
   export let nodes: Node[];
   export let edges: Edge[];
@@ -13,8 +15,14 @@
 
   const dispatch = createEventDispatcher();
 
+  function simplifyEdge(edge) {
+    const { id, source, target, data } = edge;
+    return { id, source, target, data: { loopCount: data.loopCount } };
+  }
+
   function exportFlow() {
-    const flowData = JSON.stringify({ nodes, edges }, null, 2);
+    const simplifiedEdges = edges.map(simplifyEdge);
+    const flowData = JSON.stringify({ nodes, edges: simplifiedEdges }, null, 2);
     textareaContent = flowData;
   }
 
@@ -58,6 +66,10 @@
     window.removeEventListener('mousemove', resize);
     window.removeEventListener('mouseup', stopResize);
   }
+
+  function handleLoadTemplate(event) {
+    dispatch('loadTemplate', event.detail);
+  }
 </script>
 
 <div class="save-load-panel" style="height: {panelHeight}px;">
@@ -65,6 +77,7 @@
   <div class="panel-content">
     <textarea bind:value={textareaContent} placeholder="Paste flow data here to import"></textarea>
     <div class="button-container">
+      <TemplateDropdown on:loadTemplate={handleLoadTemplate} />
       <button on:click={exportFlow}>Export</button>
       <button on:click={importFlow}>Import</button>
       <button on:click={clearFlow} class="clear-button">Clear</button>
