@@ -1,6 +1,7 @@
 <!-- App.svelte -->
 <script lang="ts">
-  import { writable } from 'svelte/store';
+
+  import { writable, derived } from 'svelte/store';
   import {
     SvelteFlow,
     Controls,
@@ -32,12 +33,6 @@
   });
 
 
-  $: {
-    if ($edges) {
-      console.log('Edges updated:', $edges.map(edge => ({...edge, data: {...edge.data}})));
-      updateCyclicEdges();
-    }
-  }
   
   const defaultEdgeOptions = {
     markerEnd: {
@@ -120,12 +115,6 @@
   }
 
 
-  $: {
-    if ($edges) {
-      console.log('Edges updated:', $edges);
-      updateCyclicEdges();
-    }
-  }
 
 
   let nodes = writable<Node[]>([
@@ -293,22 +282,58 @@ async function runConnectedNodes(edgeId) {
 
 
 
-  let id = 100;
-  const getId = () => `${id++}`;
   let processing = false;
 
+  // Create a derived store for the highest node ID
+  const highestNodeId = derived(nodes, $nodes => {
+    return $nodes.reduce((max, node) => {
+      const nodeId = parseInt(node.id);
+      return isNaN(nodeId) ? max : Math.max(max, nodeId);
+    }, 0);
+  });
 
+  // Create a writable store for the next available ID
+  const nextId = writable(1);
+
+  // Create a writable store for the next new node number
+  const nextNewNodeNumber = writable(1);
+
+  // Subscribe to changes in highestNodeId and update nextId accordingly
+  highestNodeId.subscribe(value => {
+    nextId.set(value + 1);
+  });
+
+  // Function to get the next ID
+  const getId = () => {
+    let id;
+    nextId.update(n => {
+      id = n;
+      return n + 1;
+    });
+    return `${id}`;
+  };
+
+  // Function to get the next new node label
+  const getNewNodeLabel = () => {
+    let number;
+    nextNewNodeNumber.update(n => {
+      number = n;
+      return n + 1;
+    });
+    return `New Node ${number}`;
+  };
+
+
+  
   function onPaneClick(event) {
     const newNode = {
       id: getId(),
       type: 'text',
-      position: { x: 0, y: 0 },
-      data: { label: `Node ${id}`, text: 'Insert prompt here.' }
+      position: { x: 0, y: 0},
+      data: { label: getNewNodeLabel(), text: 'Insert prompt here.' }
     };
 
     nodes.update(n => [...n, newNode]);
-
-
   }
 
 
@@ -651,37 +676,7 @@ async function runConnectedNodes(edgeId) {
     edges.update(e => e.filter(edge => edge.source !== id && edge.target !== id));
   }
 
-  function topologicalSort(nodes, edges) {
-    const graph = new Map();
-    nodes.forEach(node => graph.set(node.id, []));
-    edges.forEach(edge => {
-      if (graph.has(edge.source)) {
-        graph.get(edge.source).push(edge.target);
-      }
-    });
-
-    const visited = new Set();
-    const stack = [];
-
-    function dfs(nodeId) {
-      visited.add(nodeId);
-      const neighbors = graph.get(nodeId) || [];
-      for (const neighbor of neighbors) {
-        if (!visited.has(neighbor)) {
-          dfs(neighbor);
-        }
-      }
-      stack.push(nodeId);
-    }
-
-    for (const node of nodes) {
-      if (!visited.has(node.id)) {
-        dfs(node.id);
-      }
-    }
-
-    return stack.reverse().map(id => nodes.find(node => node.id === id));
-  }
+  
   function detectCycles(nodes, edges) {
   const graph = new Map();
   nodes.forEach(node => graph.set(node.id, []));
@@ -731,9 +726,9 @@ async function runConnectedNodes(edgeId) {
 
 
   function updateCyclicEdges() {
-    console.log('updateCyclicEdges called');
+
     const cycleEdges = detectCycles($nodes, $edges);
-    console.log('Detected cycle edges:', cycleEdges);
+
     edges.update(eds => {
       const updatedEdges = eds.map(edge => ({
         ...edge,
@@ -743,18 +738,11 @@ async function runConnectedNodes(edgeId) {
           loopCount: cycleEdges.has(edge.id) ? (edge.data?.loopCount || 2) : undefined
         }
       }));
-      console.log('Updated edges in updateCyclicEdges:', updatedEdges);
       return updatedEdges;
     });
   }
 
 
-  function handleImport(event) {
-    const importedData = event.detail;
-    nodes.set(importedData.nodes);
-    edges.set(importedData.edges);
-    updateCyclicEdges();
-  }
   
   function handleConnect(event) {
     console.log('Connect event fired:', event.detail);
@@ -780,10 +768,30 @@ async function runConnectedNodes(edgeId) {
     return newEdge;
   }
 
+  // Update the handleImport function
+  function handleImport(event) {
+    const importedData = event.detail;
+    nodes.set(importedData.nodes);
+    edges.set(importedData.edges);
+    updateCyclicEdges();
+
+    // Ensure nextId is updated after import
+    highestNodeId.subscribe(value => {
+      nextId.set(value + 1);
+    })();
+
+    // Reset the new node counter after import
+    nextNewNodeNumber.set(1);
+  }
+
+  // Function to clear the graph
   function handleClear() {
     nodes.set([]);
     edges.set([]);
     updateCyclicEdges();
+
+    // Reset the new node counter when clearing the graph
+    nextNewNodeNumber.set(1);
   }
   
   let saveLoadPanelHeight = 150; // Default height
