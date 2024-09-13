@@ -2,7 +2,7 @@
 <script lang="ts">
   import { getBezierPath } from '@xyflow/svelte';
   import { onMount } from 'svelte';
-
+  import { Play, Trash2 } from 'lucide-svelte';
   export let id;
   export let sourceX;
   export let sourceY;
@@ -170,13 +170,13 @@
       <!-- Play button -->
       <g on:click|stopPropagation={onPlay} style="cursor: pointer;">
         <rect x="5" y="5" width="30" height="30" rx="3" ry="3" fill="#4CAF50" />
-        <path d="M15 10l15 10-15 10V10z" fill="white" />
+        <Play size={20} color="white" x={10} y={10} />
       </g>
 
       <!-- Delete button -->
       <g on:click|stopPropagation={onDelete} style="cursor: pointer;">
         <rect x="45" y="5" width="30" height="30" rx="3" ry="3" fill="#F44336" />
-        <path d="M52 13l16 16M68 13l-16 16" stroke="white" stroke-width="2" />
+        <Trash2 size={20} color="white" x={50} y={10} />
       </g>
     </g>
   {/if}

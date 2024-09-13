@@ -25,7 +25,10 @@
   import CustomEdge from './CustomEdge.svelte';
   import SaveLoadPanel from './SaveLoadPanel.svelte';
   import { loadTemplate } from './templateUtils';
-
+  import ModelSelector from './ModelSelector.svelte';
+  import { selectedModel } from './stores';
+  import { Zap, Square } from 'lucide-svelte';
+  
   console.log('onConnect function:', onConnect);
 
   import { onMount } from 'svelte';
@@ -336,18 +339,19 @@ async function runConnectedNodes(edgeId) {
     isCreatingNodeViaDrag = true;
   };
 
-  const handleConnectEnd: OnConnectEnd = (event, connectionState) => {
+  const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     if (connectionState.isValid) {
       isCreatingNodeViaDrag = false;
       return;
     }
 
     const sourceNodeId = connectionState.fromNode?.id ?? '1';
+    const sourceNode = $nodes.find(node => node.id === sourceNodeId);
     const id = getId();
     const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
     const newNode: Node = {
       id,
-      type: 'text',
+      type: 'result',
       data: { label: getNewNodeLabel(), text: 'Insert prompt here.' },
       position: screenToFlowPosition({
         x: clientX,
@@ -357,14 +361,21 @@ async function runConnectedNodes(edgeId) {
     };
 
     nodes.update(n => [...n, newNode]);
-    edges.update(e => [...e, createEdge({
+    const newEdge = createEdge({
       id: `e${sourceNodeId}-${id}`,
       source: sourceNodeId,
       target: id
-    })]);
+    });
+    edges.update(e => [...e, newEdge]);
 
     isCreatingNodeViaDrag = false;
-    lastClickTime = Date.now(); // Set the last click time
+    lastClickTime = Date.now();
+
+    // Check if the source node is a text node and has content
+    if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== 'Insert prompt here.') {
+      // Run the new node automatically
+      await runConnectedNodes(newEdge.id);
+    }
   };
 
   function onPaneClick(event) {
@@ -849,36 +860,42 @@ async function runConnectedNodes(edgeId) {
       alert('Failed to load template');
     }
   }
+
+  function handleModelChange(event: CustomEvent<string>) {
+    selectedModel.set(event.detail);
+  }
   
 </script>
 
-      <main style="height: calc(100vh - {saveLoadPanelHeight}px);">
-        <SvelteFlow
-          {nodes}
-          {edges}
-          {nodeTypes}
-          {edgeTypes}
-          {defaultEdgeOptions}
-          fitView
-          on:paneclick={onPaneClick}
-          onedgecreate={handleEdgeCreate}
-          onconnectend={handleConnectEnd}
-        >
-      <Controls />
-      <Background variant={BackgroundVariant.Dots} />
+<main style="height: calc(100vh - {saveLoadPanelHeight}px);">
+  <div class="model-selector-container">
+    <ModelSelector on:modelChange={handleModelChange} />
+  </div>
+  <SvelteFlow
+    {nodes}
+    {edges}
+    {nodeTypes}
+    {edgeTypes}
+    {defaultEdgeOptions}
+    fitView
+    on:paneclick={onPaneClick}
+    onedgecreate={handleEdgeCreate}
+    onconnectend={handleConnectEnd}
+  >
+    <Controls />
+    <Background variant={BackgroundVariant.Dots} />
 
-      <div class="custom-controls">
-        <button class="custom-button" on:click={onBigButtonClick} class:processing={isRunning}>
-          {#if isRunning}
-            ⏹️
-          {:else}
-            ⚡️
-          {/if}
-        </button>
-      </div>
-    </SvelteFlow>
-  </main>
-
+    <div class="custom-controls">
+      <button class="custom-button" on:click={onBigButtonClick} class:processing={isRunning}>
+        {#if isRunning}
+          <Square size={24} />
+        {:else}
+          <Zap size={24} />
+        {/if}
+      </button>
+    </div>
+  </SvelteFlow>
+</main>
   
 
 <SaveLoadPanel 
@@ -921,13 +938,11 @@ async function runConnectedNodes(edgeId) {
     bottom: 20px;
     z-index: 10;
   }
-
   .custom-button {
-    background-color: #f0f0f0;
+    background-color: #ffd500;
     border: none;
     border-radius: 50%;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
-    font-size: 24px;
     width: 60px;
     height: 60px;
     display: flex;
@@ -936,6 +951,7 @@ async function runConnectedNodes(edgeId) {
     transition: all 0.3s ease;
     cursor: pointer;
     outline: none;
+    color: #333; /* Icon color */
   }
 
   .custom-button:hover {
@@ -952,7 +968,6 @@ async function runConnectedNodes(edgeId) {
   .custom-button.processing {
     animation: pulse 1s infinite;
   }
-  
 
   @keyframes pulse {
     0% {
@@ -993,4 +1008,11 @@ async function runConnectedNodes(edgeId) {
     box-shadow: 0 0 0 2px #5e3bc0 !important;
   }
 
+
+  .model-selector-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+  }
 </style>

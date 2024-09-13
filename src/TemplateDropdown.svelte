@@ -13,8 +13,8 @@
     // For now, we'll simulate it with a timeout
     await new Promise(resolve => setTimeout(resolve, 500));
     templates = [
-      { name: 'Basic Flow', file: 'basic-flow.json' },
-      { name: 'Complex Flow', file: 'complex-flow.json' },
+      { name: 'Looping', file: 'basic-flow.json' },
+      { name: 'Reviewer', file: 'complex-flow.json' },
       { name: 'Empty Flow', file: 'empty-flow.json' }
     ];
   };
