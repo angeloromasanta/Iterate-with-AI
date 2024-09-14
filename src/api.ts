@@ -1,15 +1,16 @@
+// api.ts
 import { get } from "svelte/store";
-import { selectedModel } from "./stores";
+import { selectedModel, userApiKey } from "./stores";
 
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 
 export async function getLLMResponse(input: string): Promise<string> {
-  if (!OPENROUTER_API_KEY) {
-    console.error("OpenRouter API key is not set");
-    return "Error: API key is not configured.";
-  }
-
   const model = get(selectedModel);
+  const apiKey = get(userApiKey) || OPENROUTER_API_KEY;
+
+  if (!apiKey && model !== "meta-llama/llama-3.1-405b-instruct") {
+    return "Error: API key is required for this model.";
+  }
 
   try {
     const response = await fetch(
@@ -17,7 +18,7 @@ export async function getLLMResponse(input: string): Promise<string> {
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
