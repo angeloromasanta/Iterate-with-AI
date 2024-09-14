@@ -29,8 +29,6 @@
   import { selectedModel } from './stores';
   import { Zap, Square } from 'lucide-svelte';
   
-  console.log('onConnect function:', onConnect);
-
   import { onMount } from 'svelte';
 
   onMount(() => {
@@ -104,21 +102,6 @@
           : edge
       )
     );
-  }
-
-
-
-  function onConnect(params: any) {
-    console.log('onConnect called with params:', params);
-    edges.update(eds => {
-      const newEdge = createEdge({
-        id: `e${params.source}-${params.target}`,
-        source: params.source,
-        target: params.target
-      });
-      console.log('New edge created:', newEdge);
-      return [...eds, newEdge];
-    });
   }
 
 
