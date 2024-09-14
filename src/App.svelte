@@ -1,7 +1,7 @@
 <!-- App.svelte -->
 <script lang="ts">
 
-  import { writable, derived } from 'svelte/store';
+  import { writable, derived, get } from 'svelte/store';
   import {
     SvelteFlow,
     useSvelteFlow,
@@ -54,6 +54,33 @@
     text: TextNode,
     result: ResultNode
   };
+
+  // Function to get node data including all nodes
+  function getNodeData(node) {
+    const allNodesData = get(nodes).map(n => ({ id: n.id, label: n.data.label }));
+    console.log('getNodeData called for node:', node.id, 'allNodes:', allNodesData);
+    return {
+      ...node.data,
+      allNodes: allNodesData
+    };
+  }
+
+  // Update nodes store to include allNodes in each node's data
+  $: {
+    nodes.update(currentNodes => {
+      const allNodesData = currentNodes.map(node => ({ id: node.id, label: node.data.label }));
+      console.log('Updating nodes store. allNodesData:', allNodesData);
+      const updatedNodes = currentNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          allNodes: allNodesData
+        }
+      }));
+      console.log('Updated nodes:', updatedNodes);
+      return updatedNodes;
+    });
+  }
 
   const edgeTypes: EdgeTypes = {
     custom: CustomEdge as any // Use type assertion here
@@ -859,6 +886,7 @@ async function runConnectedNodes(edgeId) {
     {edges}
     {nodeTypes}
     {edgeTypes}
+    {getNodeData}
     {defaultEdgeOptions}
     fitView
     on:paneclick={onPaneClick}
