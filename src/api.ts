@@ -2,20 +2,18 @@
 import { get } from "svelte/store";
 import { selectedModel, userApiKey } from "./stores";
 
-const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 export async function getLLMResponse(input: string): Promise<string> {
   const model = get(selectedModel);
-  const apiKey = get(userApiKey) || OPENROUTER_API_KEY;
-
-  if (!apiKey && model !== "meta-llama/llama-3.1-405b-instruct") {
-    return "Error: API key is required for this model.";
-  }
+  const apiKey = get(userApiKey);
 
   try {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
+    let response;
+
+    if (apiKey) {
+      // If user has provided their own API key, make the request directly to OpenRouter
+      response = await fetch(OPENROUTER_API_ENDPOINT, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -25,15 +23,29 @@ export async function getLLMResponse(input: string): Promise<string> {
           model: model,
           messages: [{ role: "user", content: input }],
         }),
-      },
-    );
+      });
+    } else {
+      // If no user API key, use the server endpoint (which uses your API key)
+      response = await fetch("/api/llm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          input,
+        }),
+      });
+    }
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+
     const data = await response.json();
     return data.choices[0].message.content;
   } catch (error) {
-    console.error("Error calling OpenRouter API:", error);
+    console.error("Error calling LLM API:", error);
     return "Error: Unable to get response from LLM.";
   }
 }

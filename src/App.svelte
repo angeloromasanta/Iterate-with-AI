@@ -92,7 +92,7 @@
 
   // Function to get node data including all nodes
   function getNodeData(node) {
-    const allNodesData = get(nodes).map(n => ({ id: n.id, label: n.data.label }));
+    const allNodesData = $nodes.map(n => ({ id: n.id, label: n.data.label }));
     console.log('getNodeData called for node:', node.id, 'allNodes:', allNodesData);
     return {
       ...node.data,
@@ -105,15 +105,13 @@
     nodes.update(currentNodes => {
       const allNodesData = currentNodes.map(node => ({ id: node.id, label: node.data.label }));
       console.log('Updating nodes store. allNodesData:', allNodesData);
-      const updatedNodes = currentNodes.map(node => ({
+      return currentNodes.map(node => ({
         ...node,
         data: {
           ...node.data,
           allNodes: allNodesData
         }
       }));
-      console.log('Updated nodes:', updatedNodes);
-      return updatedNodes;
     });
   }
 

@@ -5,22 +5,19 @@
 
   const dispatch = createEventDispatcher();
 
-  const freeModels = [
+  const models = [
     { value: 'meta-llama/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
-  ];
-
-  const paidModels = [
     { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
     { value: 'openai/chatgpt-4o-latest', label: 'GPT-4 Turbo' },
     { value: 'openai/o1-preview', label: 'OpenAI O1 Preview' },
   ];
 
-  $: allModels = $userApiKey ? [...freeModels, ...paidModels] : freeModels;
+  $: availableModels = $userApiKey ? models : [models[0]];
 
   $: {
-    if (!$userApiKey && !freeModels.some(model => model.value === $selectedModel)) {
-      selectedModel.set(freeModels[0].value);
-    } else if ($userApiKey && $selectedModel === freeModels[0].value) {
+    if (!$userApiKey && !availableModels.some(model => model.value === $selectedModel)) {
+      selectedModel.set(models[0].value);
+    } else if ($userApiKey && $selectedModel === '') {
       selectedModel.set('anthropic/claude-3.5-sonnet');
     }
   }
@@ -34,7 +31,7 @@
 
 <div class="model-selector">
   <select on:change={handleChange} value={$selectedModel}>
-    {#each allModels as model}
+    {#each availableModels as model}
       <option value={model.value}>{model.label}</option>
     {/each}
   </select>

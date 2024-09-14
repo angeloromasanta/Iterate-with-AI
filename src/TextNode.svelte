@@ -65,11 +65,39 @@
     }
 
     function checkForAutocomplete(text: string) {
-      // ... (autocomplete logic remains unchanged)
-    }
+      console.log(`Checking for autocomplete in node ${id}. Text:`, text);
+      console.log(`allNodes for node ${id}:`, data.allNodes);
+      if (!data.allNodes) {
+        console.warn(`allNodes data is not available for node ${id}`);
+        return;
+      }
 
+      const cursorPos = textarea.selectionStart;
+      const textBeforeCursor = text.slice(0, cursorPos);
+      const lastOpenBrace = textBeforeCursor.lastIndexOf('{');
+
+      if (lastOpenBrace !== -1 && textBeforeCursor.indexOf('}', lastOpenBrace) === -1) {
+        const searchTerm = textBeforeCursor.slice(lastOpenBrace + 1).toLowerCase();
+        suggestions = data.allNodes
+          .map(node => node.label)
+          .filter(label => label.toLowerCase().includes(searchTerm));
+        showSuggestions = suggestions.length > 0;
+        cursorPosition = cursorPos;
+        console.log(`Suggestions for node ${id}:`, suggestions);
+      } else {
+        showSuggestions = false;
+      }
+    }
+    console.log(`TextNode ${id} initialized with data:`, data);
+    
     function selectSuggestion(suggestion: string) {
-      // ... (suggestion selection logic remains unchanged)
+      console.log(`Selecting suggestion for node ${id}:`, suggestion);
+      const text = data.text;
+      const textBeforeCursor = text.slice(0, cursorPosition);
+      const lastOpenBrace = textBeforeCursor.lastIndexOf('{');
+      const newText = text.slice(0, lastOpenBrace + 1) + suggestion + '}' + text.slice(cursorPosition);
+      updateNode(id, { data: { ...data, text: newText } });
+      showSuggestions = false;
     }
 
     function changeNodeType(event) {
