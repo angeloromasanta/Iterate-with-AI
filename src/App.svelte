@@ -91,8 +91,9 @@
   };
 
   // Function to get node data including all nodes
+  // Function to get node data including all nodes
   function getNodeData(node) {
-    const allNodesData = $nodes.map(n => ({ id: n.id, label: n.data.label }));
+    const allNodesData = get(nodes).map(n => ({ id: n.id, label: n.data.label }));
     console.log('getNodeData called for node:', node.id, 'allNodes:', allNodesData);
     return {
       ...node.data,
@@ -105,16 +106,20 @@
     nodes.update(currentNodes => {
       const allNodesData = currentNodes.map(node => ({ id: node.id, label: node.data.label }));
       console.log('Updating nodes store. allNodesData:', allNodesData);
-      return currentNodes.map(node => ({
+      const updatedNodes = currentNodes.map(node => ({
         ...node,
         data: {
           ...node.data,
           allNodes: allNodesData
         }
       }));
+      console.log('Updated nodes:', updatedNodes);
+      return updatedNodes;
     });
   }
 
+
+  
   const edgeTypes: EdgeTypes = {
     custom: CustomEdge as any // Use type assertion here
   };
@@ -856,18 +861,22 @@ async function runConnectedNodes(edgeId) {
     return newEdge;
   }
 
-  // Update the handleImport function
   function handleImport(event) {
     const importedData = event.detail;
-    nodes.set(importedData.nodes);
+    const allNodesData = importedData.nodes.map(n => ({ id: n.id, label: n.data.label }));
+
+    const nodesWithAllNodes = importedData.nodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        allNodes: allNodesData
+      }
+    }));
+
+    nodes.set(nodesWithAllNodes);
     edges.set(importedData.edges);
     updateCyclicEdges();
-    saveStateToLocalStorage(); // Save immediately after import
 
-
-
-
-    
     // Ensure nextId is updated after import
     highestNodeId.subscribe(value => {
       nextId.set(value + 1);
@@ -875,8 +884,9 @@ async function runConnectedNodes(edgeId) {
 
     // Reset the new node counter after import
     nextNewNodeNumber.set(1);
-  }
 
+    console.log('Imported nodes with allNodes:', nodesWithAllNodes);
+  }
   // Function to clear the graph
   function handleClear() {
     nodes.set([]);
@@ -898,12 +908,24 @@ async function runConnectedNodes(edgeId) {
     const templateFile = event.detail;
     try {
       const templateData = await loadTemplate(templateFile);
-      nodes.set(templateData.nodes);
+      const allNodesData = templateData.nodes.map(n => ({ id: n.id, label: n.data.label }));
+
+      const nodesWithAllNodes = templateData.nodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          allNodes: allNodesData
+        }
+      }));
+
+      nodes.set(nodesWithAllNodes);
       edges.set(templateData.edges);
       updateCyclicEdges();
 
       // Reset the new node counter after loading a template
       nextNewNodeNumber.set(1);
+
+      console.log('Loaded template nodes with allNodes:', nodesWithAllNodes);
     } catch (error) {
       console.error('Error loading template:', error);
       alert('Failed to load template');

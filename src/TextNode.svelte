@@ -26,7 +26,8 @@
     let copySuccess = false;
 
     console.log(`TextNode ${id} initialized with data:`, data);
-
+    $: console.log(`TextNode ${id} received data:`, data);
+    
     if (!data.label) {
       data.label = 'Node';
     }
