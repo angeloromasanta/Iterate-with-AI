@@ -66,10 +66,9 @@
     }
 
     function checkForAutocomplete(text: string) {
-      console.log(`Checking for autocomplete in node ${id}. Text:`, text);
-      console.log(`allNodes for node ${id}:`, data.allNodes);
-      if (!data.allNodes) {
-        console.warn(`allNodes data is not available for node ${id}`);
+      console.log(`Checking for autocomplete in node ${id}. allNodes:`, data.allNodes);
+      if (!data.allNodes || data.allNodes.length === 0) {
+        console.warn(`allNodes data is not available or empty for node ${id}`);
         return;
       }
 

@@ -91,7 +91,6 @@
   };
 
   // Function to get node data including all nodes
-  // Function to get node data including all nodes
   function getNodeData(node) {
     const allNodesData = get(nodes).map(n => ({ id: n.id, label: n.data.label }));
     console.log('getNodeData called for node:', node.id, 'allNodes:', allNodesData);
@@ -101,22 +100,7 @@
     };
   }
 
-  // Update nodes store to include allNodes in each node's data
-  $: {
-    nodes.update(currentNodes => {
-      const allNodesData = currentNodes.map(node => ({ id: node.id, label: node.data.label }));
-      console.log('Updating nodes store. allNodesData:', allNodesData);
-      const updatedNodes = currentNodes.map(node => ({
-        ...node,
-        data: {
-          ...node.data,
-          allNodes: allNodesData
-        }
-      }));
-      console.log('Updated nodes:', updatedNodes);
-      return updatedNodes;
-    });
-  }
+
 
 
   
@@ -254,6 +238,24 @@ let edges = writable<Edge[]>([
     }
   }
 
+  const nodesWithAllNodesData = derived(nodes, $nodes => {
+    const allNodesData = $nodes.map(node => ({ id: node.id, label: node.data.label }));
+    return $nodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        allNodes: allNodesData
+      }
+    }));
+  });
+
+  // Use this reactive statement to update the nodes store
+  $: {
+    const updatedNodes = $nodesWithAllNodesData;
+    console.log('Updating nodes with allNodes data:', updatedNodes);
+    nodes.set(updatedNodes);
+  }
+  
 async function runConnectedNodes(edgeId) {
   const edge = $edges.find(e => e.id === edgeId);
   if (!edge) return;

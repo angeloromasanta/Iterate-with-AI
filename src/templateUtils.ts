@@ -663,7 +663,7 @@ export async function loadTemplate(
             y: 57.434217413653926,
           },
           data: {
-            label: "Node 104",
+            label: "Revision recheck",
             text: "Here is the revised draft: \n{Revised Draft} \nImprove this revised draft given this assessment: {Revision Assessment}",
           },
           measured: {
