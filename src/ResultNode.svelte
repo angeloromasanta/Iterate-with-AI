@@ -1,3 +1,4 @@
+<!-- ResultNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Check, Trash2 } from 'lucide-svelte';
@@ -147,7 +148,7 @@
 
 <style>
   .custom {
-    background-color: #eee;
+    background-color: #dde8ed;  /* Light blue */
     padding: 10px;
     border-radius: 10px;
     position: relative;

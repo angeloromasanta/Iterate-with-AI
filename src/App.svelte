@@ -27,10 +27,18 @@
   import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
   import { selectedModel } from './stores';
-  import { Zap, Square } from 'lucide-svelte';
+  import { Zap, Square, Info } from 'lucide-svelte';
   
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
 
+  let showInstructions = false;
+
+  function toggleInstructions() {
+    showInstructions = !showInstructions;
+  }
+
+  
   onMount(() => {
     window.addEventListener('edgeAdded', (event) => {
       console.log('Edge added event:', event.detail);
@@ -877,7 +885,23 @@ async function runConnectedNodes(edgeId) {
   
 </script>
 
+
 <main style="height: calc(100vh - {saveLoadPanelHeight}px);">
+  <div class="title">Iterate with AI</div>
+  <div class="info-icon" on:click={toggleInstructions}>
+    <Info size={24} />
+  </div>
+  {#if showInstructions}
+    <div class="instructions" transition:fade>
+      <h3>Quick Instructions</h3>
+      <ol>
+        <li>Add nodes with click or by dragging.</li>
+        <li>Run individual nodes by clicking their connection. All nodes by pressing the thunder.</li>
+        <li>Import or export models by copy or pasting below.</li>
+      </ol>
+      <p>Developed by Angelo Romasanta</p>
+    </div>
+  {/if}
   <div class="model-selector-container">
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
@@ -1025,5 +1049,49 @@ async function runConnectedNodes(edgeId) {
     top: 10px;
     right: 10px;
     z-index: 10;
+  }
+
+  .title {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+    z-index: 10;
+  }
+
+  .info-icon {
+    position: absolute;
+    top: 10px;
+    left: 180px;
+    cursor: pointer;
+    z-index: 10;
+  }
+
+  .instructions {
+    position: absolute;
+    top: 50px;
+    left: 10px;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    padding: 15px;
+    max-width: 300px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 20;
+  }
+
+  .instructions h3 {
+    margin-top: 0;
+  }
+
+  .instructions ol {
+    padding-left: 20px;
+  }
+
+  .instructions p {
+    margin-bottom: 0;
+    font-style: italic;
   }
 </style>
