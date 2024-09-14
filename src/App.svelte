@@ -38,11 +38,38 @@
     showInstructions = !showInstructions;
   }
 
+  function saveStateToLocalStorage() {
+    const state = {
+      nodes: get(nodes),
+      edges: get(edges)
+    };
+    localStorage.setItem('canvasState', JSON.stringify(state));
+  }
+
+  // Function to load the state from local storage
+  function loadStateFromLocalStorage() {
+    const savedState = localStorage.getItem('canvasState');
+    if (savedState) {
+      const state = JSON.parse(savedState);
+      nodes.set(state.nodes);
+      edges.set(state.edges);
+      updateCyclicEdges();
+    }
+  }
   
   onMount(() => {
     window.addEventListener('edgeAdded', (event) => {
       console.log('Edge added event:', event.detail);
     });
+    loadStateFromLocalStorage();
+
+    // Set up an interval to save the state every 5 seconds
+    const saveInterval = setInterval(saveStateToLocalStorage, 5000);
+
+    return () => {
+      clearInterval(saveInterval);
+      saveStateToLocalStorage(); // Save one last time when unmounting
+    };
   });
 
 
@@ -837,7 +864,12 @@ async function runConnectedNodes(edgeId) {
     nodes.set(importedData.nodes);
     edges.set(importedData.edges);
     updateCyclicEdges();
+    saveStateToLocalStorage(); // Save immediately after import
 
+
+
+
+    
     // Ensure nextId is updated after import
     highestNodeId.subscribe(value => {
       nextId.set(value + 1);
@@ -852,6 +884,7 @@ async function runConnectedNodes(edgeId) {
     nodes.set([]);
     edges.set([]);
     updateCyclicEdges();
+    saveStateToLocalStorage();
 
     // Reset the new node counter when clearing the graph
     nextNewNodeNumber.set(1);
