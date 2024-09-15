@@ -15,14 +15,35 @@
 
   const dispatch = createEventDispatcher();
 
+  function simplifyNode(node) {
+    const { id, type, data, position, measured, selected, class: nodeClass } = node;
+    const roundedPosition = {
+      x: Math.round(position.x / 10) * 10,
+      y: Math.round(position.y / 10) * 10
+    };
+    return {
+      id,
+      type,
+      data: { 
+        label: data.label,
+        text: data.text
+      },
+      position: roundedPosition,
+      measured,
+      selected,
+      class: nodeClass
+    };
+  }
+
   function simplifyEdge(edge) {
     const { id, source, target, data } = edge;
     return { id, source, target, data: { loopCount: data.loopCount } };
   }
 
   function exportFlow() {
+    const simplifiedNodes = nodes.map(simplifyNode);
     const simplifiedEdges = edges.map(simplifyEdge);
-    const flowData = JSON.stringify({ nodes, edges: simplifiedEdges }, null, 2);
+    const flowData = JSON.stringify({ nodes: simplifiedNodes, edges: simplifiedEdges }, null, 2);
     textareaContent = flowData;
   }
 
