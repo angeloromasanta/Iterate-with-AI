@@ -192,6 +192,8 @@
     border-radius: 4px;
     padding: 5px;
     box-sizing: border-box;
+    font-size: 14px;  /* Add this line to match the text node font size */
+    font-family: inherit;  /* Add this line to ensure consistent font family */
   }
   .result {
     margin-bottom: 10px;
