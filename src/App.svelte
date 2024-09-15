@@ -979,7 +979,7 @@ async function runConnectedNodes(edgeId) {
       <h3>Quick Instructions</h3>
       <ol>
         <li>Add nodes with click or by dragging.</li>
-        <li>Run individual nodes by clicking their connection. All nodes by pressing the thunder.</li>
+        <li>Run individual nodes by clicking their connection. Run all nodes by pressing the thunder. Make sure to choose your model.</li>
         <li>Import or export models by copy or pasting below.</li>
       </ol>
       <p>Developed by Angelo Romasanta</p>
