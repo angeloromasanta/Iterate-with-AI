@@ -63,7 +63,7 @@
     isAnimated = true;
     setTimeout(() => {
       isAnimated = false;
-    }, 2000); // Stop animation after 2 seconds
+    }, 2000);
   }
 
   function onDelete() {
@@ -168,15 +168,16 @@
       <rect x="0" y="0" width="80" height="40" rx="5" ry="5" fill="white" stroke="black" />
 
       <!-- Play button -->
-      <g on:click|stopPropagation={onPlay} style="cursor: pointer;">
+      <g on:mousedown|stopPropagation={onPlay} style="cursor: pointer;">
         <rect x="5" y="5" width="30" height="30" rx="3" ry="3" fill="#4CAF50" />
         <Play size={20} color="white" x={10} y={10} />
       </g>
 
       <!-- Delete button -->
-      <g on:click|stopPropagation={onDelete} style="cursor: pointer;">
+      <g on:mousedown|stopPropagation={onDelete} style="cursor: pointer;">
         <rect x="45" y="5" width="30" height="30" rx="3" ry="3" fill="#F44336" />
         <Trash2 size={20} color="white" x={50} y={10} />
+      
       </g>
     </g>
   {/if}

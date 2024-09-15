@@ -123,8 +123,8 @@
       selected: false,
       data: { 
         onPlay: () => runConnectedNodes(edgeId),
-        onDelete: (id: string) => deleteEdge(id),
-        updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
+        onDelete: () => deleteEdge(edgeId),
+        updateEdgeData: (newData: any) => updateEdgeData(edgeId, newData),
         showLoopCount: false,
         loopCount: 2
       }

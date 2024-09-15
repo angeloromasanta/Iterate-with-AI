@@ -1,3 +1,4 @@
+<!-- ModelSelector.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { selectedModel, userApiKey } from './stores';
