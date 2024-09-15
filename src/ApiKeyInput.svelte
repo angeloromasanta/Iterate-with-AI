@@ -1,3 +1,4 @@
+<!-- ApiKeyInput.svelte -->
 <script lang="ts">
   import { userApiKey } from './stores';
 

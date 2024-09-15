@@ -414,7 +414,7 @@ export async function loadTemplate(
           type: "text",
           data: {
             label: "Digest Reviewer 3 Comments",
-            text: "Here are the comments from Reviewer 2: \n{Reviewer 2 Comments}. \n\nAnalyze and summarize the key points, criticisms, and suggestions. Identify the main areas of concern and potential improvements. ",
+            text: "Here are the comments from Reviewer 3: \n{Reviewer 3 Comments}. \n\nAnalyze and summarize the key points, criticisms, and suggestions. Identify the main areas of concern and potential improvements. ",
           },
           position: {
             x: 47.4375,

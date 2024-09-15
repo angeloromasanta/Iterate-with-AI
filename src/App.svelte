@@ -401,7 +401,7 @@ async function runConnectedNodes(edgeId) {
   };
 
 
-  const { screenToFlowPosition } = useSvelteFlow();
+  const { screenToFlowPosition, fitView  } = useSvelteFlow();
 
   const handleConnectStart: OnConnectStart = (event) => {
     isCreatingNodeViaDrag = true;
@@ -420,7 +420,7 @@ async function runConnectedNodes(edgeId) {
     const newNode: Node = {
       id,
       type: 'result',
-      data: { label: getNewNodeLabel(), text: 'Insert prompt here.' },
+      data: { label: getNewNodeLabel(), text: '' },
       position: screenToFlowPosition({
         x: clientX,
         y: clientY
@@ -440,7 +440,7 @@ async function runConnectedNodes(edgeId) {
     lastClickTime = Date.now();
 
     // Check if the source node is a text node and has content
-    if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== 'Insert prompt here.') {
+    if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
       // Run the new node automatically
       await runConnectedNodes(newEdge.id);
     }
@@ -458,7 +458,7 @@ async function runConnectedNodes(edgeId) {
       id: getId(),
       type: 'text',
       position: flowPosition,
-      data: { label: getNewNodeLabel(), text: 'Insert prompt here.' }
+      data: { label: getNewNodeLabel(), text: '' }
     };
 
     nodes.update(n => [...n, newNode]);
@@ -956,6 +956,11 @@ async function runConnectedNodes(edgeId) {
       nodes.update(n => [...n]);
       edges.update(e => [...e]);
 
+      // Fit view after loading template
+      setTimeout(() => {
+        fitView({ padding: 0.2 });
+      }, 0);
+
     } catch (error) {
       console.error('Error loading template:', error);
       alert('Failed to load template');
@@ -982,7 +987,7 @@ async function runConnectedNodes(edgeId) {
         <li>Run individual nodes by clicking their connection. Run all nodes by pressing the thunder. Make sure to choose your model.</li>
         <li>Import or export models by copy or pasting below.</li>
       </ol>
-      <p>Developed by Angelo Romasanta</p>
+      <p>Developed by <a href="https://angeloromasanta.com"> Angelo Romasanta</a></p>
     </div>
   {/if}
   <div class="model-selector-container">

@@ -13,29 +13,36 @@
     { value: 'openai/o1-preview', label: 'OpenAI O1 Preview' },
   ];
 
-  $: availableModels = $userApiKey ? models : [models[0]];
-
-  $: {
-    if (!$userApiKey && !availableModels.some(model => model.value === $selectedModel)) {
-      selectedModel.set(models[0].value);
-    } else if ($userApiKey && $selectedModel === '') {
-      selectedModel.set('anthropic/claude-3.5-sonnet');
-    }
-  }
+  let showKeyMessage = false;
 
   function handleChange(event: Event) {
     const target = event.target as HTMLSelectElement;
-    selectedModel.set(target.value);
-    dispatch('modelChange', target.value);
+    if (!$userApiKey && target.value !== models[0].value) {
+      showKeyMessage = true;
+      selectedModel.set(models[0].value);
+    } else {
+      showKeyMessage = false;
+      selectedModel.set(target.value);
+      dispatch('modelChange', target.value);
+    }
+  }
+
+  $: {
+    if (!$userApiKey && $selectedModel !== models[0].value) {
+      selectedModel.set(models[0].value);
+    }
   }
 </script>
 
 <div class="model-selector">
   <select on:change={handleChange} value={$selectedModel}>
-    {#each availableModels as model}
+    {#each models as model}
       <option value={model.value}>{model.label}</option>
     {/each}
   </select>
+  {#if showKeyMessage}
+    <p class="key-message">You need an API key to use this model. Please enter your key below.</p>
+  {/if}
   <ApiKeyInput />
 </div>
 
@@ -45,12 +52,16 @@
     flex-direction: column;
     gap: 10px;
   }
-
   select {
     padding: 5px 10px;
     font-size: 14px;
     border-radius: 4px;
     border: 1px solid #ccc;
     background-color: white;
+  }
+  .key-message {
+    color: #ff6b6b;
+    font-size: 14px;
+    margin: 5px 0;
   }
 </style>
