@@ -1329,4 +1329,22 @@ async function runConnectedNodes(edgeId) {
     margin-bottom: 0;
     font-style: italic;
   }
+
+  @media (max-width: 768px) {
+    .custom-controls {
+      bottom: 80px; /* Adjust this value as needed */
+    }
+
+    :global(.svelte-flow__controls) {
+      bottom: 140px; /* Adjust this value as needed */
+    }
+    .title {
+      font-size: 20px; /* Slightly smaller font size for mobile */
+    }
+
+    .info-icon {
+      top: 40px; /* Move it below the title */
+      left: 10px; /* Align with the title */
+    }
+  }
 </style>

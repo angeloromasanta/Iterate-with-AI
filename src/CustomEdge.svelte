@@ -42,16 +42,25 @@
 
   let isHovered = false;
   let hideTimeout;
+  let isMobile = false;
+
+  function checkMobile() {
+    isMobile = window.innerWidth <= 768; // Adjust this breakpoint as needed
+  }
 
   function showButtons() {
-    isHovered = true;
-    clearTimeout(hideTimeout);
+    if (!isMobile) {
+      isHovered = true;
+      clearTimeout(hideTimeout);
+    }
   }
 
   function hideButtons() {
-    hideTimeout = setTimeout(() => {
-      isHovered = false;
-    }, 1500); // Keep buttons visible for 1.5 seconds after mouse leaves
+    if (!isMobile) {
+      hideTimeout = setTimeout(() => {
+        isHovered = false;
+      }, 1500);
+    }
   }
 
   let isAnimated = false;
@@ -72,11 +81,16 @@
     }
   }
 
+
   onMount(() => {
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
     return () => {
       clearTimeout(hideTimeout);
+      window.removeEventListener('resize', checkMobile);
     };
   });
+
 
 
   let loopCount = data?.loopCount ?? 2;
@@ -112,8 +126,14 @@
 
   $: loopCountX = targetX - 40; // Move 100 pixels to the left of the target node
   $: loopCountY = targetY - 0; // Move 30 pixels above the target node
+
+
   
   let path: string;
+  
+  let buttonX: number;
+  let buttonY: number;
+
   $: {
     if (sourceX > targetX) {
       // If the source is to the right of the target (connecting to left side)
@@ -125,7 +145,7 @@
 
       // Calculate control points for a looping curve
       const controlPointOffsetX = dx * 0.3;
-      const verticalFactor = 1.3; // Adjust this value to make the loop larger or smaller
+      const verticalFactor = 1.3;
       const controlPointOffsetY = Math.max(dy, 150) * verticalFactor * (isSourceAbove ? -1 : 1);
 
       const sourceControlX = sourceX + controlPointOffsetX;
@@ -138,6 +158,10 @@
               C ${sourceControlX} ${sourceControlY}, 
                 ${targetControlX} ${targetControlY}, 
                 ${targetX} ${targetY}`;
+
+      // Calculate the midpoint of the path for button placement
+      buttonX = (sourceX + targetX + sourceControlX + targetControlX) / 4;
+      buttonY = (sourceY + targetY + sourceControlY + targetControlY) / 4 ;
     } else {
       // For other cases, use the default bezier path
       [path] = getBezierPath({
@@ -148,6 +172,10 @@
         targetY,
         targetPosition,
       });
+
+      // For the default path, place buttons at the midpoint
+      buttonX = (sourceX + targetX) / 2;
+      buttonY = (sourceY + targetY) / 2;
     }
   }
 
@@ -163,21 +191,18 @@
     marker-end={markerEnd}
   />
 
-  {#if isHovered}
-    <g transform={`translate(${(sourceX + targetX) / 2 - 40}, ${(sourceY + targetY) / 2 - 20})`}>
-      <rect x="0" y="0" width="80" height="40" rx="5" ry="5" fill="white" stroke="black" />
-
+  {#if isHovered || isMobile}
+    <g transform={`translate(${buttonX - 40}, ${buttonY - 20})`}>
       <!-- Play button -->
       <g on:mousedown|stopPropagation={onPlay} style="cursor: pointer;">
-        <rect x="5" y="5" width="30" height="30" rx="3" ry="3" fill="#4CAF50" />
+        <circle cx="20" cy="20" r="18" fill="#4CAF50" />
         <Play size={20} color="white" x={10} y={10} />
       </g>
 
       <!-- Delete button -->
       <g on:mousedown|stopPropagation={onDelete} style="cursor: pointer;">
-        <rect x="45" y="5" width="30" height="30" rx="3" ry="3" fill="#F44336" />
+        <circle cx="60" cy="20" r="18" fill="#F44336" />
         <Trash2 size={20} color="white" x={50} y={10} />
-      
       </g>
     </g>
   {/if}
