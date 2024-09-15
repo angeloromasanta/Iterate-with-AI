@@ -52,7 +52,24 @@
     if (savedState) {
       const state = JSON.parse(savedState);
       nodes.set(state.nodes);
-      edges.set(state.edges);
+
+      // Recreate edges with proper callback functions
+      const loadedEdges = state.edges.map(edge => createEdge({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type,
+        animated: edge.animated,
+        style: edge.style,
+        data: {
+          ...edge.data,
+          onPlay: () => runConnectedNodes(edge.id),
+          onDelete: (id: string) => deleteEdge(id),
+          updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
+        }
+      }));
+
+      edges.set(loadedEdges);
       updateCyclicEdges();
     }
   }
@@ -119,14 +136,15 @@
       type: 'custom',
       markerEnd: defaultEdgeOptions.markerEnd,
       style: defaultEdgeOptions.style,
-      animated: false,
-      selected: false,
+      animated: params.animated || false,
+      selected: params.selected || false,
       data: { 
-        onPlay: () => runConnectedNodes(edgeId),
-        onDelete: () => deleteEdge(edgeId),
-        updateEdgeData: (newData: any) => updateEdgeData(edgeId, newData),
-        showLoopCount: false,
-        loopCount: 2
+        ...params.data,
+        onPlay: params.data?.onPlay || (() => runConnectedNodes(edgeId)),
+        onDelete: params.data?.onDelete || ((id: string) => deleteEdge(id)),
+        updateEdgeData: params.data?.updateEdgeData || ((id: string, newData: any) => updateEdgeData(id, newData)),
+        showLoopCount: params.data?.showLoopCount || false,
+        loopCount: params.data?.loopCount || 2
       }
     };
     console.log('Created new edge:', newEdge);
@@ -910,24 +928,34 @@ async function runConnectedNodes(edgeId) {
     const templateFile = event.detail;
     try {
       const templateData = await loadTemplate(templateFile);
-      const allNodesData = templateData.nodes.map(n => ({ id: n.id, label: n.data.label }));
+      nodes.set(templateData.nodes);
 
-      const nodesWithAllNodes = templateData.nodes.map(node => ({
-        ...node,
+      // Recreate edges with proper callback functions
+      const loadedEdges = templateData.edges.map(edge => createEdge({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type,
+        animated: edge.animated,
+        style: edge.style,
         data: {
-          ...node.data,
-          allNodes: allNodesData
+          ...edge.data,
+          onPlay: () => runConnectedNodes(edge.id),
+          onDelete: (id: string) => deleteEdge(id),
+          updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
         }
       }));
 
-      nodes.set(nodesWithAllNodes);
-      edges.set(templateData.edges);
+      edges.set(loadedEdges);
       updateCyclicEdges();
 
       // Reset the new node counter after loading a template
       nextNewNodeNumber.set(1);
 
-      console.log('Loaded template nodes with allNodes:', nodesWithAllNodes);
+      // Force a re-render of the SvelteFlow component
+      nodes.update(n => [...n]);
+      edges.update(e => [...e]);
+
     } catch (error) {
       console.error('Error loading template:', error);
       alert('Failed to load template');
