@@ -4,7 +4,10 @@ import { selectedModel, userApiKey } from "./stores";
 
 const OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-export async function getLLMResponse(input: string, onChunk: (chunk: string) => void): Promise<string> {
+export async function getLLMResponse(
+  input: string,
+  onChunk: (chunk: string) => void,
+): Promise<string> {
   const model = get(selectedModel);
   const apiKey = get(userApiKey);
 
@@ -12,6 +15,7 @@ export async function getLLMResponse(input: string, onChunk: (chunk: string) => 
     let response;
     if (apiKey) {
       // If user has provided their own API key, make the request directly to OpenRouter
+      //
       response = await fetch(OPENROUTER_API_ENDPOINT, {
         method: "POST",
         headers: {
@@ -48,25 +52,28 @@ export async function getLLMResponse(input: string, onChunk: (chunk: string) => 
     let fullResponse = "";
 
     while (true) {
-      const { done, value } = await reader?.read() ?? { done: true, value: undefined };
+      const { done, value } = (await reader?.read()) ?? {
+        done: true,
+        value: undefined,
+      };
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(line => line.trim() !== '');
+      const lines = chunk.split("\n").filter((line) => line.trim() !== "");
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
+        if (line.startsWith("data: ")) {
           const data = line.slice(6);
-          if (data === '[DONE]') continue;
+          if (data === "[DONE]") continue;
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices[0]?.delta?.content ?? '';
+            const content = parsed.choices[0]?.delta?.content ?? "";
             if (content) {
               onChunk(content);
               fullResponse += content;
             }
           } catch (error) {
-            console.error('Error parsing JSON:', error);
+            console.error("Error parsing JSON:", error);
           }
         }
       }
