@@ -60,7 +60,6 @@
     isMinimized = !isMinimized;
   }
 
-  
   $: streamingResult = data.streamingResult || '';
   $: completedResults = data.results || [];
 
@@ -71,7 +70,10 @@
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^\* (.*$)/gim, '<li>$1</li>')
-      .replace(/^(\d+\. .*$)/gim, '<ol><li>$1</li></ol>');
+      .replace(/^(\d+\. .*$)/gim, '<ol><li>$1</li></ol>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code>$1</code>');
   }
 
   function handleResizeStart(event: MouseEvent) {
@@ -93,6 +95,10 @@
 
   function handleMouseUp() {
     isResizing = false;
+  }
+
+  function preventNodeDrag(event: MouseEvent) {
+    event.stopPropagation();
   }
 </script>
 
@@ -134,30 +140,33 @@
     />
   </div>
   {#if !isMinimized}
-  <div class="results-container" style="height: {containerHeight}px;">
-    {#if !completedResults.length && !streamingResult}
-      <div>No results yet</div>
-    {:else}
-      {#each completedResults as result}
-        <div class="result">
-          {@html formatText(result)}
-        </div>
-      {/each}
-      {#if streamingResult}
-        <div class="result streaming">
-          {@html formatText(streamingResult)}
-        </div>
+    <div class="results-container" 
+         style="height: {containerHeight}px;"
+         on:mousedown={preventNodeDrag}
+         on:touchstart={preventNodeDrag}>
+      {#if !completedResults.length && !streamingResult}
+        <div>No results yet</div>
+      {:else}
+        {#each completedResults as result}
+          <div class="result selectable">
+            {@html formatText(result)}
+          </div>
+        {/each}
+        {#if streamingResult}
+          <div class="result streaming selectable">
+            {@html formatText(streamingResult)}
+          </div>
+        {/if}
       {/if}
-    {/if}
-  </div>
-{/if}
+    </div>
+  {/if}
   <div class="resize-handle" on:mousedown={handleResizeStart}></div>
   <Handle type="source" position={Position.Right} class="big-handle"/>
 </div>
 
 <style>
   .custom {
-    background-color: #dde8ed;  /* Light blue */
+    background-color: #dde8ed;
     padding: 10px;
     border-radius: 10px;
     position: relative;
@@ -201,8 +210,8 @@
     border-radius: 4px;
     padding: 5px;
     box-sizing: border-box;
-    font-size: 14px;  /* Add this line to match the text node font size */
-    font-family: inherit;  /* Add this line to ensure consistent font family */
+    font-size: 14px;
+    font-family: inherit;
   }
   .result {
     margin-bottom: 10px;
@@ -229,5 +238,21 @@
   .streaming {
     border-left: 3px solid #4CAF50;
     padding-left: 5px;
+  }
+  .selectable {
+    user-select: text;
+    cursor: text;
+  }
+  :global(.selectable h1, .selectable h2, .selectable h3) {
+    margin: 0.5em 0;
+  }
+  :global(.selectable ul, .selectable ol) {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+  }
+  :global(.selectable code) {
+    background-color: #f0f0f0;
+    padding: 2px 4px;
+    border-radius: 3px;
   }
 </style>
