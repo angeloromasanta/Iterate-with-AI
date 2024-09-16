@@ -83,8 +83,12 @@ export async function getLLMResponse(
         const parts = chunk.split(/(\d+:)|e:|d:/);
         for (const part of parts) {
           if (part && !part.startsWith("{") && !part.match(/^\d+:$/)) {
-            onChunk(part);
-            fullResponse += part;
+            // Remove quotation marks and trim whitespace
+            const cleanedPart = part.replace(/^"|"$/g, "").trim();
+            if (cleanedPart) {
+              onChunk(cleanedPart);
+              fullResponse += cleanedPart;
+            }
           }
         }
       }
