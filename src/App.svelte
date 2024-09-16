@@ -80,7 +80,6 @@
   
   onMount(() => {
     window.addEventListener('edgeAdded', (event) => {
-      console.log('Edge added event:', event.detail);
     });
     loadStateFromLocalStorage();
 
@@ -114,7 +113,6 @@
   // Function to get node data including all nodes
   function getNodeData(node) {
     const allNodesData = get(nodes).map(n => ({ id: n.id, label: n.data.label }));
-    console.log('getNodeData called for node:', node.id, 'allNodes:', allNodesData);
     return {
       ...node.data,
       allNodes: allNodesData
@@ -151,7 +149,6 @@
         loopCount: params.data?.loopCount || 2
       }
     };
-    console.log('Created new edge:', newEdge);
     return newEdge;
   }
 
@@ -165,7 +162,6 @@
   }
 
   function updateEdgeData(id: string, newData: any) {
-    console.log(`Updating edge data for edge ${id}`, newData);
     edges.update(eds => 
       eds.map(edge => 
         edge.id === id 
@@ -394,7 +390,6 @@ let edges = writable<Edge[]>([
   // Use this reactive statement to update the nodes store
   $: {
     const updatedNodes = $nodesWithAllNodesData;
-    console.log('Updating nodes with allNodes data:', updatedNodes);
     nodes.set(updatedNodes);
   }
   
