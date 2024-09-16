@@ -83,11 +83,17 @@ export async function getLLMResponse(
         const parts = chunk.split(/(\d+:)|e:|d:/);
         for (const part of parts) {
           if (part && !part.startsWith("{") && !part.match(/^\d+:$/)) {
-            // Remove quotation marks and trim whitespace
-            const cleanedPart = part.replace(/^"|"$/g, "").trim();
-            if (cleanedPart) {
-              onChunk(cleanedPart);
-              fullResponse += cleanedPart;
+            try {
+              // Parse the JSON string to remove escape characters
+              const parsed = JSON.parse(part);
+              if (typeof parsed === "string") {
+                onChunk(parsed);
+                fullResponse += parsed;
+              }
+            } catch (error) {
+              // If parsing fails, use the original string
+              onChunk(part);
+              fullResponse += part;
             }
           }
         }
