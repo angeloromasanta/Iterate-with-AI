@@ -59,7 +59,6 @@ export async function getLLMResponse(
 
       const chunk = decoder.decode(value, { stream: true });
 
-      // Handle both server-side and direct OpenRouter responses
       if (apiKey) {
         // Direct OpenRouter response handling (unchanged)
         const lines = chunk.split("\n").filter((line) => line.trim() !== "");
@@ -81,14 +80,20 @@ export async function getLLMResponse(
         }
       } else {
         // Server-side response handling
-        try {
-          const contents = chunk.split("").filter((char) => char.trim() !== "");
-          for (const content of contents) {
-            onChunk(content);
-            fullResponse += content;
+        const parts = chunk.split(/(\d+:)|e:|d:/).filter(Boolean);
+        for (const part of parts) {
+          if (part.startsWith("{")) {
+            // This is metadata, we can log it or handle it as needed
+            console.log("Metadata:", part);
+          } else if (part.includes(":")) {
+            // This is a content chunk
+            const [, content] = part.split(":");
+            if (content) {
+              const unquotedContent = content.replace(/^"|"$/g, "");
+              onChunk(unquotedContent);
+              fullResponse += unquotedContent;
+            }
           }
-        } catch (error) {
-          console.error("Error processing server response:", error);
         }
       }
     }
