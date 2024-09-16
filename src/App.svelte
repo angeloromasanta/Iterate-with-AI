@@ -174,188 +174,188 @@
 
 
 
-  let nodes = writable<Node[]>([
-                                {
-                                  "id": "1",
-                                  "type": "text",
-                                  "data": {
-                                    "label": "Text Node 1",
-                                    "text": "Name the capital of Japan"
-                                  },
-                                  "position": {
-                                    "x": -140,
-                                    "y": -10
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "2",
-                                  "type": "result",
-                                  "data": {
-                                    "label": "Result Node 1",
-                                    "text": "Madrid"
-                                  },
-                                  "position": {
-                                    "x": 120,
-                                    "y": -10
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "3",
-                                  "type": "text",
-                                  "data": {
-                                    "label": "Text Node 2",
-                                    "text": "Paris"
-                                  },
-                                  "position": {
-                                    "x": -140,
-                                    "y": 160
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "4",
-                                  "type": "text",
-                                  "data": {
-                                    "label": "Text Node 3",
-                                    "text": "Write a poem about {Result Node 1} and {Text Node 2}"
-                                  },
-                                  "position": {
-                                    "x": 350,
-                                    "y": 80
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "5",
-                                  "type": "result",
-                                  "data": {
-                                    "label": "Result Node 2",
-                                    "text": "Poem about Paris and Madrid"
-                                  },
-                                  "position": {
-                                    "x": 660,
-                                    "y": 70
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "6",
-                                  "type": "text",
-                                  "data": {
-                                    "label": "Text Node 4",
-                                    "text": "Suggest ways to improve {Result Node 2}"
-                                  },
-                                  "position": {
-                                    "x": 920,
-                                    "y": 60
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "7",
-                                  "type": "result",
-                                  "data": {
-                                    "label": "Result Node 3",
-                                    "text": "Suggestions"
-                                  },
-                                  "position": {
-                                    "x": 1170,
-                                    "y": 60
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "8",
-                                  "type": "text",
-                                  "data": {
-                                    "label": "Text Node 5",
-                                    "text": "Improve {Result Node 2} based on these suggestions {Result Node 3}"
-                                  },
-                                  "position": {
-                                    "x": 1430,
-                                    "y": 30
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": true,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "9",
-                                  "type": "text",
-                                  "data": {
-                                    "label": "Text Node 6",
-                                    "text": "Format the poem in {Result Node 2}"
-                                  },
-                                  "position": {
-                                    "x": 940,
-                                    "y": 260
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                },
-                                {
-                                  "id": "10",
-                                  "type": "result",
-                                  "data": {
-                                    "label": "Result Node 4",
-                                    "text": "Final Poem"
-                                  },
-                                  "position": {
-                                    "x": 1200,
-                                    "y": 260
-                                  },
-                                  "measured": {
-                                    "width": 200,
-                                    "height": 130
-                                  },
-                                  "selected": false,
-                                  "class": ""
-                                }
-                              ]);
+let nodes = writable<Node[]>([
+  {
+    "id": "1",
+    "type": "text",
+    "data": {
+      "label": "Text Node 1",
+      "text": "Name the capital of Spain"
+    },
+    "position": {
+      "x": -140,
+      "y": -10
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "2",
+    "type": "result",
+    "data": {
+      "label": "Result Node 1",
+      "text": "Madrid"
+    },
+    "position": {
+      "x": 120,
+      "y": -10
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "3",
+    "type": "text",
+    "data": {
+      "label": "Text Node 2",
+      "text": "Paris"
+    },
+    "position": {
+      "x": -140,
+      "y": 160
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "4",
+    "type": "text",
+    "data": {
+      "label": "Text Node 3",
+      "text": "Write a poem about {Result Node 1} and {Text Node 2}"
+    },
+    "position": {
+      "x": 350,
+      "y": 80
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "5",
+    "type": "result",
+    "data": {
+      "label": "Result Node 2",
+      "text": "Poem about Paris and Madrid"
+    },
+    "position": {
+      "x": 660,
+      "y": 70
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "6",
+    "type": "text",
+    "data": {
+      "label": "Text Node 4",
+      "text": "Suggest ways to improve {Result Node 2}"
+    },
+    "position": {
+      "x": 920,
+      "y": 60
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "7",
+    "type": "result",
+    "data": {
+      "label": "Result Node 3",
+      "text": "Suggestions"
+    },
+    "position": {
+      "x": 1170,
+      "y": 60
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "8",
+    "type": "text",
+    "data": {
+      "label": "Text Node 5",
+      "text": "Improve {Result Node 2} based on these suggestions {Result Node 3}"
+    },
+    "position": {
+      "x": 1430,
+      "y": 30
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": true,
+    "class": ""
+  },
+  {
+    "id": "9",
+    "type": "text",
+    "data": {
+      "label": "Text Node 6",
+      "text": "Format the poem in {Result Node 2}"
+    },
+    "position": {
+      "x": 940,
+      "y": 260
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  },
+  {
+    "id": "10",
+    "type": "result",
+    "data": {
+      "label": "Result Node 4",
+      "text": "Final Poem"
+    },
+    "position": {
+      "x": 1200,
+      "y": 260
+    },
+    "measured": {
+      "width": 200,
+      "height": 130
+    },
+    "selected": false,
+    "class": ""
+  }
+]);
 
 let edges = writable<Edge[]>([
   createEdge({ id: 'e1-2', source: '1', target: '2' }),

@@ -56,7 +56,6 @@ export async function getLLMResponse(
         value: undefined,
       };
       if (done) break;
-
       const chunk = decoder.decode(value, { stream: true });
 
       if (apiKey) {
@@ -79,38 +78,9 @@ export async function getLLMResponse(
           }
         }
       } else {
-        // Server-side response handling
- // Server-side response handling
-let buffer = '';
-const parts = chunk.split(/(\d+:)|e:|d:/);
-for (const part of parts) {
-  if (part && !part.match(/^\d+:$/)) {
-    buffer += part;
-  }
-}
-
-// Process the accumulated buffer
-const cleanedString = buffer
-  .replace(/^"|"$/g, '') // Remove leading and trailing quotes
-  .replace(/\\"/g, '"') // Replace escaped quotes with regular quotes
-  .replace(/\\n/g, '\n') // Replace escaped newlines with actual newlines
-  .replace(/"([^"]*)":/g, '$1:') // Remove quotes around property names
-  .replace(/\{[^}]*\}/g, '') // Remove JSON objects (like finishReason and usage)
-  .replace(/(?:^|\n)([^:\n]+):/g, '\n\n$1:\n') // Add newlines before and after headings
-  .replace(/\n\s*\*/g, '\n\n*') // Ensure list items start on a new line
-  .trim(); // Remove any leading or trailing whitespace
-
-// Split the cleaned string into chunks and process each chunk
-const chunks = cleanedString.split(/(?<=\n)/);
-for (const chunk of chunks) {
-  if (chunk.trim()) {
-    onChunk(chunk);
-    fullResponse += chunk;
-  }
-}
-            
-          
-        
+        // Server-side response handling (simplified)
+        onChunk(chunk);
+        fullResponse += chunk;
       }
     }
 

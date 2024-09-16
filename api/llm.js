@@ -8,7 +8,6 @@ export const config = {
 
 export default async function handler(req) {
   console.log("Handler function called");
-
   if (req.method !== "POST") {
     console.log("Method not allowed");
     return new Response("Method Not Allowed", { status: 405 });
@@ -25,7 +24,6 @@ export default async function handler(req) {
 
   const { model, input } = body;
   const apiKey = process.env.VITE_OPENROUTER_API_KEY;
-
   console.log("Model:", model);
   console.log("Input:", input);
   console.log("API Key exists:", !!apiKey);
@@ -53,7 +51,7 @@ export default async function handler(req) {
     });
 
     console.log("Stream created, returning response");
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse(); // Changed from toDataStreamResponse to toTextStreamResponse
   } catch (error) {
     console.error("Error calling OpenRouter API:", error);
     return new Response("Unable to get response from LLM: " + error.message, {
