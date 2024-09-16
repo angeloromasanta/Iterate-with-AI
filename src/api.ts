@@ -56,7 +56,6 @@ export async function getLLMResponse(
         value: undefined,
       };
       if (done) break;
-
       const chunk = decoder.decode(value, { stream: true });
 
       if (apiKey) {
@@ -82,18 +81,35 @@ export async function getLLMResponse(
         // Server-side response handling
         const parts = chunk.split(/(\d+:)|e:|d:/);
         for (const part of parts) {
-          if (part && !part.startsWith("{") && !part.match(/^\d+:$/)) {
+          if (part && !part.match(/^\d+:$/)) {
             try {
               // Parse the JSON string to remove escape characters
-              const parsed = JSON.parse(part);
+              const parsed = JSON.parse(`"${part.trim()}"`);
               if (typeof parsed === "string") {
-                onChunk(parsed);
-                fullResponse += parsed;
+                // Clean up the parsed string
+                const cleanedString = parsed
+                  .replace(/^"|"$/g, '') // Remove leading and trailing quotes
+                  .replace(/\\"/g, '"') // Replace escaped quotes with regular quotes
+                  .replace(/\\n/g, '\n') // Replace escaped newlines with actual newlines
+                  .trim(); // Remove any leading or trailing whitespace
+
+                if (cleanedString) {
+                  onChunk(cleanedString);
+                  fullResponse += cleanedString;
+                }
               }
             } catch (error) {
-              // If parsing fails, use the original string
-              onChunk(part);
-              fullResponse += part;
+              // If parsing fails, use a cleaned version of the original string
+              const cleanedString = part
+                .replace(/^"|"$/g, '')
+                .replace(/\\"/g, '"')
+                .replace(/\\n/g, '\n')
+                .trim();
+
+              if (cleanedString) {
+                onChunk(cleanedString);
+                fullResponse += cleanedString;
+              }
             }
           }
         }
