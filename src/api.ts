@@ -80,19 +80,11 @@ export async function getLLMResponse(
         }
       } else {
         // Server-side response handling
-        const parts = chunk.split(/(\d+:)|e:|d:/).filter(Boolean);
+        const parts = chunk.split(/(\d+:)|e:|d:/);
         for (const part of parts) {
-          if (part.startsWith("{")) {
-            // This is metadata, we can log it or handle it as needed
-            console.log("Metadata:", part);
-          } else if (part.includes(":")) {
-            // This is a content chunk
-            const [, content] = part.split(":");
-            if (content) {
-              const unquotedContent = content.replace(/^"|"$/g, "");
-              onChunk(unquotedContent);
-              fullResponse += unquotedContent;
-            }
+          if (part && !part.startsWith("{") && !part.match(/^\d+:$/)) {
+            onChunk(part);
+            fullResponse += part;
           }
         }
       }
