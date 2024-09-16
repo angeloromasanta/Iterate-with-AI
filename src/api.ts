@@ -56,6 +56,7 @@ export async function getLLMResponse(
         value: undefined,
       };
       if (done) break;
+
       const chunk = decoder.decode(value, { stream: true });
 
       if (apiKey) {
@@ -79,40 +80,37 @@ export async function getLLMResponse(
         }
       } else {
         // Server-side response handling
-        const parts = chunk.split(/(\d+:)|e:|d:/);
-        for (const part of parts) {
-          if (part && !part.match(/^\d+:$/)) {
-            try {
-              // Parse the JSON string to remove escape characters
-              const parsed = JSON.parse(`"${part.trim()}"`);
-              if (typeof parsed === "string") {
-                // Clean up the parsed string
-                const cleanedString = parsed
-                  .replace(/^"|"$/g, '') // Remove leading and trailing quotes
-                  .replace(/\\"/g, '"') // Replace escaped quotes with regular quotes
-                  .replace(/\\n/g, '\n') // Replace escaped newlines with actual newlines
-                  .trim(); // Remove any leading or trailing whitespace
+ // Server-side response handling
+let buffer = '';
+const parts = chunk.split(/(\d+:)|e:|d:/);
+for (const part of parts) {
+  if (part && !part.match(/^\d+:$/)) {
+    buffer += part;
+  }
+}
 
-                if (cleanedString) {
-                  onChunk(cleanedString);
-                  fullResponse += cleanedString;
-                }
-              }
-            } catch (error) {
-              // If parsing fails, use a cleaned version of the original string
-              const cleanedString = part
-                .replace(/^"|"$/g, '')
-                .replace(/\\"/g, '"')
-                .replace(/\\n/g, '\n')
-                .trim();
+// Process the accumulated buffer
+const cleanedString = buffer
+  .replace(/^"|"$/g, '') // Remove leading and trailing quotes
+  .replace(/\\"/g, '"') // Replace escaped quotes with regular quotes
+  .replace(/\\n/g, '\n') // Replace escaped newlines with actual newlines
+  .replace(/"([^"]*)":/g, '$1:') // Remove quotes around property names
+  .replace(/\{[^}]*\}/g, '') // Remove JSON objects (like finishReason and usage)
+  .replace(/(?:^|\n)([^:\n]+):/g, '\n\n$1:\n') // Add newlines before and after headings
+  .replace(/\n\s*\*/g, '\n\n*') // Ensure list items start on a new line
+  .trim(); // Remove any leading or trailing whitespace
 
-              if (cleanedString) {
-                onChunk(cleanedString);
-                fullResponse += cleanedString;
-              }
-            }
-          }
-        }
+// Split the cleaned string into chunks and process each chunk
+const chunks = cleanedString.split(/(?<=\n)/);
+for (const chunk of chunks) {
+  if (chunk.trim()) {
+    onChunk(chunk);
+    fullResponse += chunk;
+  }
+}
+            
+          
+        
       }
     }
 

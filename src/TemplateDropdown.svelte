@@ -15,7 +15,7 @@
     templates = [
       { name: 'Paper Writer', file: 'basic-flow.json' },
       { name: 'Reviewer', file: 'complex-flow.json' },
-      { name: 'Empty Flow', file: 'empty-flow.json' }
+      { name: 'Demo Sample', file: 'demo.json' }
     ];
   };
 
