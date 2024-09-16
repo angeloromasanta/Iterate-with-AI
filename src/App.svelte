@@ -398,86 +398,104 @@ let edges = writable<Edge[]>([
     nodes.set(updatedNodes);
   }
   
-async function runConnectedNodes(edgeId) {
-  const edge = $edges.find(e => e.id === edgeId);
-  if (!edge) return;
+ async function runConnectedNodes(edgeId) {
+    const edge = $edges.find(e => e.id === edgeId);
+    if (!edge) return;
 
-  const sourceNode = $nodes.find(n => n.id === edge.source);
-  const targetNode = $nodes.find(n => n.id === edge.target);
+    const sourceNode = $nodes.find(n => n.id === edge.source);
+    const targetNode = $nodes.find(n => n.id === edge.target);
 
-  if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
-    processing = true;
+    if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
+      processing = true;
 
-    // Process the source node
-    let processedText = sourceNode.data.text;
-    const referencedNodes = [];
+      // Process the source node
+      let processedText = sourceNode.data.text;
+      const referencedNodes = [];
 
-    // Replace references with actual values and collect referenced nodes
-    const regex = /{([^}]+)}/g;
-    processedText = processedText.replace(regex, (match, label) => {
-      const referencedNode = $nodes.find(n => n.data.label === label);
-      if (referencedNode) {
-        referencedNodes.push(referencedNode);
-        if (referencedNode.type === 'result' && referencedNode.data.results) {
-          return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-            ? referencedNode.data.results[referencedNode.data.results.length - 1]
-            : match;
-        } else if (referencedNode.type === 'text') {
-          return referencedNode.data.text || match;
+      // Replace references with actual values and collect referenced nodes
+      const regex = /{([^}]+)}/g;
+      processedText = processedText.replace(regex, (match, label) => {
+        const referencedNode = $nodes.find(n => n.data.label === label);
+        if (referencedNode) {
+          referencedNodes.push(referencedNode);
+          if (referencedNode.type === 'result' && referencedNode.data.results) {
+            return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
+              ? referencedNode.data.results[referencedNode.data.results.length - 1]
+              : match;
+          } else if (referencedNode.type === 'text') {
+            return referencedNode.data.text || match;
+          }
         }
-      }
-      return match;
-    });
+        return match;
+      });
 
-    // Update node classes
-    nodes.update(n => n.map(node => ({
-      ...node,
-      class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
-        ? `${node.class || ''} processing`.trim()
-        : node.class
-    })));
+      // Update node classes
+      nodes.update(n => n.map(node => ({
+        ...node,
+        class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
+          ? `${node.class || ''} processing`.trim()
+          : node.class
+      })));
 
-    // Animate the edge
-    edges.update(e => e.map(edge => ({
-      ...edge,
-      animated: edge.id === edgeId,
-      class: edge.id === edgeId ? 'processing-edge' : edge.class
-    })));
+      // Animate the edge
+      edges.update(e => e.map(edge => ({
+        ...edge,
+        animated: edge.id === edgeId,
+        class: edge.id === edgeId ? 'processing-edge' : edge.class
+      })));
 
-    // Delay to allow for visual update
-    await new Promise(resolve => setTimeout(resolve, 100));
+      // Delay to allow for visual update
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-    const response = await getLLMResponse(processedText);
-
-    // Update the target node with the response
+      let fullResponse = '';
+  const response = await getLLMResponse(processedText, (chunk) => {
+    fullResponse += chunk;
+    // Update the target node with the partial response
     nodes.update(n => n.map(node => {
       if (node.id === targetNode.id) {
         return {
           ...node,
           data: {
             ...node.data,
-            results: [...(node.data.results || []), response]
+            streamingResult: fullResponse,
+            results: [...(node.data.results || [])]
           }
         };
       }
       return node;
     }));
+  });
 
-    // Reset processing classes and animations
-    nodes.update(n => n.map(node => ({
-      ...node,
-      class: (node.class || '').replace('processing', '').trim()
-    })));
+  // Final update with the complete response
+  nodes.update(n => n.map(node => {
+    if (node.id === targetNode.id) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          streamingResult: null,
+          results: [...(node.data.results || []), response]
+        }
+      };
+    }
+    return node;
+  }));
 
-    edges.update(e => e.map(edge => ({
-      ...edge,
-      animated: false,
-      class: (edge.class || '').replace('processing-edge', '').trim()
-    })));
+      // Reset processing classes and animations
+      nodes.update(n => n.map(node => ({
+        ...node,
+        class: (node.class || '').replace('processing', '').trim()
+      })));
 
-    processing = false;
+      edges.update(e => e.map(edge => ({
+        ...edge,
+        animated: false,
+        class: (edge.class || '').replace('processing-edge', '').trim()
+      })));
+
+      processing = false;
+    }
   }
-}
 
 
   let processing = false;
@@ -684,48 +702,62 @@ async function runConnectedNodes(edgeId) {
   let shouldStop = false;
 
   async function onBigButtonClick() {
-    if (isRunning) {
-      shouldStop = true;
-      return;
-    }
-
-    console.log("Starting onBigButtonClick");
-    isRunning = true;
-    shouldStop = false;
-    processing = true;
-
-    try {
-      let allNodes = $nodes;
-      let allEdges = $edges;
-
-      const graph = buildGraph(allNodes, allEdges);
-      const cycles = findAllCycleNodes(graph);
-      const dependencies = findDependencies(graph, cycles);
-      const loopCounts = getLoopCounts(allEdges, cycles);
-
-      console.log("Graph:", graph);
-      console.log("Cycles:", cycles);
-      console.log("Dependencies:", dependencies);
-      console.log("Loop counts:", loopCounts);
-
-      const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
-      console.log("Execution order:", executionOrder);
-
-      for (const nodeId of executionOrder) {
-        if (shouldStop) {
-          console.log("Execution stopped by user");
-          break;
-        }
-        await processNode(nodeId);
-      }
-    } catch (error) {
-      console.error("Error during execution:", error);
-    } finally {
-      isRunning = false;
-      shouldStop = false;
-      processing = false;
-    }
+  if (isRunning) {
+    shouldStop = true;
+    return;
   }
+
+  console.log("Starting onBigButtonClick");
+  isRunning = true;
+  shouldStop = false;
+  processing = true;
+
+  try {
+    let allNodes = $nodes;
+    let allEdges = $edges;
+
+    const graph = buildGraph(allNodes, allEdges);
+    const cycles = findAllCycleNodes(graph);
+    const dependencies = findDependencies(graph, cycles);
+    const loopCounts = getLoopCounts(allEdges, cycles);
+
+    console.log("Graph:", graph);
+    console.log("Cycles:", cycles);
+    console.log("Dependencies:", dependencies);
+    console.log("Loop counts:", loopCounts);
+
+    const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
+    console.log("Execution order:", executionOrder);
+
+    for (const nodeId of executionOrder) {
+      if (shouldStop) {
+        console.log("Execution stopped by user");
+        break;
+      }
+
+      const node = $nodes.find(n => n.id === nodeId);
+      if (node.type === 'text') {
+        const connectedResultNodes = $edges
+          .filter(edge => edge.source === node.id)
+          .map(edge => $nodes.find(n => n.id === edge.target))
+          .filter(n => n && n.type === 'result');
+
+        for (const resultNode of connectedResultNodes) {
+          const edgeId = $edges.find(e => e.source === node.id && e.target === resultNode.id)?.id;
+          if (edgeId) {
+            await runConnectedNodes(edgeId);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error during execution:", error);
+  } finally {
+    isRunning = false;
+    shouldStop = false;
+    processing = false;
+  }
+}
 
   function calculateExecutionOrder(nodes, graph, dependencies, cycles, loopCounts) {
     const executionOrder = [];

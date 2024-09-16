@@ -4,13 +4,12 @@ import { selectedModel, userApiKey } from "./stores";
 
 const OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-export async function getLLMResponse(input: string): Promise<string> {
+export async function getLLMResponse(input: string, onChunk: (chunk: string) => void): Promise<string> {
   const model = get(selectedModel);
   const apiKey = get(userApiKey);
 
   try {
     let response;
-
     if (apiKey) {
       // If user has provided their own API key, make the request directly to OpenRouter
       response = await fetch(OPENROUTER_API_ENDPOINT, {
@@ -22,6 +21,7 @@ export async function getLLMResponse(input: string): Promise<string> {
         body: JSON.stringify({
           model: model,
           messages: [{ role: "user", content: input }],
+          stream: true,
         }),
       });
     } else {
@@ -34,6 +34,7 @@ export async function getLLMResponse(input: string): Promise<string> {
         body: JSON.stringify({
           model,
           input,
+          stream: true,
         }),
       });
     }
@@ -42,8 +43,36 @@ export async function getLLMResponse(input: string): Promise<string> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = "";
+
+    while (true) {
+      const { done, value } = await reader?.read() ?? { done: true, value: undefined };
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices[0]?.delta?.content ?? '';
+            if (content) {
+              onChunk(content);
+              fullResponse += content;
+            }
+          } catch (error) {
+            console.error('Error parsing JSON:', error);
+          }
+        }
+      }
+    }
+
+    return fullResponse;
   } catch (error) {
     console.error("Error calling LLM API:", error);
     return "Error: Unable to get response from LLM.";

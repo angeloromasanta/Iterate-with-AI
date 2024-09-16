@@ -60,6 +60,10 @@
     isMinimized = !isMinimized;
   }
 
+  
+  $: streamingResult = data.streamingResult || '';
+  $: completedResults = data.results || [];
+
   function formatText(text) {
     return text
       .replace(/\n\n/g, '<br><br>')
@@ -130,18 +134,23 @@
     />
   </div>
   {#if !isMinimized}
-    <div class="results-container" style="height: {containerHeight}px;">
-      {#if !data.results || data.results.length === 0}
-        <div>No results yet</div>
-      {:else}
-        {#each data.results as result}
-          <div class="result">
-            {@html formatText(result)}
-          </div>
-        {/each}
+  <div class="results-container" style="height: {containerHeight}px;">
+    {#if !completedResults.length && !streamingResult}
+      <div>No results yet</div>
+    {:else}
+      {#each completedResults as result}
+        <div class="result">
+          {@html formatText(result)}
+        </div>
+      {/each}
+      {#if streamingResult}
+        <div class="result streaming">
+          {@html formatText(streamingResult)}
+        </div>
       {/if}
-    </div>
-  {/if}
+    {/if}
+  </div>
+{/if}
   <div class="resize-handle" on:mousedown={handleResizeStart}></div>
   <Handle type="source" position={Position.Right} class="big-handle"/>
 </div>
@@ -216,5 +225,9 @@
     height: 10px;
     background-color: #888;
     cursor: nwse-resize;
+  }
+  .streaming {
+    border-left: 3px solid #4CAF50;
+    padding-left: 5px;
   }
 </style>
