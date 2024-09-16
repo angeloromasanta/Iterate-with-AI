@@ -7,34 +7,57 @@ export const config = {
 };
 
 export default async function handler(req) {
+  console.log("Handler function called");
+
   if (req.method !== "POST") {
+    console.log("Method not allowed");
     return new Response("Method Not Allowed", { status: 405 });
   }
 
-  const { model, input } = await req.json();
+  let body;
+  try {
+    body = await req.json();
+    console.log("Request body:", body);
+  } catch (error) {
+    console.error("Error parsing request body:", error);
+    return new Response("Invalid JSON in request body", { status: 400 });
+  }
+
+  const { model, input } = body;
   const apiKey = process.env.VITE_OPENROUTER_API_KEY;
 
+  console.log("Model:", model);
+  console.log("Input:", input);
+  console.log("API Key exists:", !!apiKey);
+
   if (!apiKey) {
+    console.error("Server API key is not configured");
     return new Response("Server API key is not configured", { status: 500 });
   }
 
   if (model !== "meta-llama/llama-3.1-405b-instruct") {
+    console.log("Invalid model requested");
     return new Response("Invalid model for this endpoint", { status: 400 });
   }
 
   try {
+    console.log("Creating OpenRouter instance");
     const openrouter = createOpenRouter({
       apiKey: apiKey,
     });
 
+    console.log("Calling streamText");
     const result = await streamText({
       model: openrouter(model),
       messages: [{ role: "user", content: input }],
     });
 
+    console.log("Stream created, returning response");
     return result.toDataStreamResponse();
   } catch (error) {
     console.error("Error calling OpenRouter API:", error);
-    return new Response("Unable to get response from LLM.", { status: 500 });
+    return new Response("Unable to get response from LLM: " + error.message, {
+      status: 500,
+    });
   }
 }
