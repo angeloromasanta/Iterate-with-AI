@@ -14,10 +14,13 @@
     "vite": "^5.4.2"
   },
   "dependencies": {
+    "@openrouter/ai-sdk-provider": "^0.0.5",
     "@xyflow/svelte": "^0.1.17",
+    "ai": "^3.3.39",
     "axios": "^1.7.7",
     "cors": "^2.8.5",
     "express": "^4.21.0",
-    "lucide-svelte": "^0.441.0"
+    "lucide-svelte": "^0.441.0",
+    "openai": "^4.61.0"
   }
 }

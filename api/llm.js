@@ -1,55 +1,40 @@
-// File: api/llm.js (or api/llm.ts if using TypeScript)
-import axios from "axios";
+// File: api/llm.js
+import { streamText } from "ai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 
-export default async function handler(req, res) {
+export const config = {
+  runtime: "edge",
+};
+
+export default async function handler(req) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
+    return new Response("Method Not Allowed", { status: 405 });
   }
 
-  const { model, input, stream } = req.body;
+  const { model, input } = await req.json();
   const apiKey = process.env.VITE_OPENROUTER_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: "Server API key is not configured" });
+    return new Response("Server API key is not configured", { status: 500 });
   }
 
   if (model !== "meta-llama/llama-3.1-405b-instruct") {
-    return res.status(400).json({ error: "Invalid model for this endpoint" });
+    return new Response("Invalid model for this endpoint", { status: 400 });
   }
 
   try {
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: model,
-        messages: [{ role: "user", content: input }],
-        stream: true,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        responseType: 'stream',
-      },
-    );
-
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+    const openrouter = createOpenRouter({
+      apiKey: apiKey,
     });
 
-    response.data.on('data', (chunk) => {
-      res.write(chunk);
+    const result = await streamText({
+      model: openrouter(model),
+      messages: [{ role: "user", content: input }],
     });
 
-    response.data.on('end', () => {
-      res.end();
-    });
-
+    return result.toDataStreamResponse();
   } catch (error) {
     console.error("Error calling OpenRouter API:", error);
-    res.status(500).json({ error: "Unable to get response from LLM." });
+    return new Response("Unable to get response from LLM.", { status: 500 });
   }
 }
