@@ -15,7 +15,6 @@ export async function getLLMResponse(
     let response;
     if (apiKey) {
       // If user has provided their own API key, make the request directly to OpenRouter
-      //
       response = await fetch(OPENROUTER_API_ENDPOINT, {
         method: "POST",
         headers: {
@@ -59,22 +58,37 @@ export async function getLLMResponse(
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n").filter((line) => line.trim() !== "");
 
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices[0]?.delta?.content ?? "";
-            if (content) {
-              onChunk(content);
-              fullResponse += content;
+      // Handle both server-side and direct OpenRouter responses
+      if (apiKey) {
+        // Direct OpenRouter response handling (unchanged)
+        const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices[0]?.delta?.content ?? "";
+              if (content) {
+                onChunk(content);
+                fullResponse += content;
+              }
+            } catch (error) {
+              console.error("Error parsing JSON:", error);
             }
-          } catch (error) {
-            console.error("Error parsing JSON:", error);
           }
+        }
+      } else {
+        // Server-side response handling
+        try {
+          const contents = chunk.split("").filter((char) => char.trim() !== "");
+          for (const content of contents) {
+            onChunk(content);
+            fullResponse += content;
+          }
+        } catch (error) {
+          console.error("Error processing server response:", error);
         }
       }
     }
