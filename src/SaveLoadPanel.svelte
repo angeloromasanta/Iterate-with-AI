@@ -16,24 +16,25 @@
   const dispatch = createEventDispatcher();
 
   function simplifyNode(node) {
-    const { id, type, data, position, measured, selected, class: nodeClass } = node;
-    const roundedPosition = {
-      x: Math.round(position.x / 10) * 10,
-      y: Math.round(position.y / 10) * 10
-    };
-    return {
-      id,
-      type,
-      data: { 
-        label: data.label,
-        text: data.text
-      },
-      position: roundedPosition,
-      measured,
-      selected,
-      class: nodeClass
-    };
-  }
+  const { id, type, data, position, measured, selected, class: nodeClass } = node;
+  const roundedPosition = {
+    x: Math.round(position.x / 10) * 10,
+    y: Math.round(position.y / 10) * 10
+  };
+  return {
+    id,
+    type,
+    data: { 
+      label: data.label,
+      text: data.text,
+      results: type === 'result' ? data.results : undefined
+    },
+    position: roundedPosition,
+    measured,
+    selected,
+    class: nodeClass
+  };
+}
 
   function simplifyEdge(edge) {
     const { id, source, target, data } = edge;
