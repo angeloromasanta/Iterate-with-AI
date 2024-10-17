@@ -1,4 +1,3 @@
-<!-- ResultNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Check, Trash2 } from 'lucide-svelte';
@@ -23,6 +22,7 @@
   let initialWidth: number;
   let initialHeight: number;
   let copySuccess = false;
+  let resultsContainer: HTMLDivElement;
 
   onMount(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -97,8 +97,15 @@
     isResizing = false;
   }
 
-  function preventNodeDrag(event: MouseEvent) {
+  function preventNodeDrag(event: MouseEvent | TouchEvent) {
     event.stopPropagation();
+  }
+
+  function handleWheel(event: WheelEvent) {
+    event.stopPropagation();
+    if (resultsContainer) {
+      resultsContainer.scrollTop += event.deltaY;
+    }
   }
 </script>
 
@@ -143,7 +150,9 @@
     <div class="results-container" 
          style="height: {containerHeight}px;"
          on:mousedown={preventNodeDrag}
-         on:touchstart={preventNodeDrag}>
+         on:touchstart={preventNodeDrag}
+         on:wheel={handleWheel}
+         bind:this={resultsContainer}>
       {#if !completedResults.length && !streamingResult}
         <div>No results yet</div>
       {:else}
@@ -205,7 +214,7 @@
   }
   .results-container {
     margin-top: 5px;
-    overflow: auto;
+    overflow-y: auto;
     border: 1px solid #ccc;
     border-radius: 4px;
     padding: 5px;
