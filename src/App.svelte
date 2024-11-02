@@ -431,11 +431,13 @@ let edges = writable<Edge[]>([
         if (referencedNode) {
           referencedNodes.push(referencedNode);
           if (referencedNode.type === 'result' && referencedNode.data.results) {
-            return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
+            const content = Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
               ? referencedNode.data.results[referencedNode.data.results.length - 1]
               : match;
+            return `<${label}>${content}</${label}>`;
           } else if (referencedNode.type === 'text') {
-            return referencedNode.data.text || match;
+            const content = referencedNode.data.text || match;
+            return `<${label}>${content}</${label}>`;
           }
         }
         return match;

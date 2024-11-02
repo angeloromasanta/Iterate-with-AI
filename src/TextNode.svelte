@@ -124,17 +124,16 @@
     console.log('Initial text to copy:', textToCopy);
     console.log('All available nodes:', data.allNodes);
     
-    // Replace references with actual content
+    // Replace references with actual content wrapped in tags
     const regex = /{([^}]+)}/g;
     textToCopy = textToCopy.replace(regex, (match, label) => {
       const referencedNode = data.allNodes?.find(n => n.label === label);
       console.log(`Looking for node with label "${label}"`, referencedNode);
       
-      // Access the text content from the referencedNode
       if (referencedNode) {
         const nodeContent = referencedNode.text;
         console.log(`Found text content for "${label}":`, nodeContent);
-        return nodeContent || match;
+        return `<${label}>${nodeContent || match}</${label}>`;
       }
       
       console.log(`No text content found for "${label}", keeping original reference`);
