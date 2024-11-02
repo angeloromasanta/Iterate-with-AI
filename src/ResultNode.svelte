@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2 } from 'lucide-svelte';
+  import { isNodeResizing } from './stores'
   import { onMount } from 'svelte';
 
   type $$Props = NodeProps;
@@ -32,6 +33,7 @@
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      $isNodeResizing = false;
     };
   });
 
@@ -105,12 +107,14 @@
 
   function handleResizeStart(event: MouseEvent) {
     isResizing = true;
+    $isNodeResizing = true;  // Set global state
     resizeStartX = event.clientX;
     resizeStartY = event.clientY;
     initialWidth = containerWidth;
     initialHeight = containerHeight;
     event.stopPropagation();
-  }
+}
+
 
   function handleMouseMove(event: MouseEvent) {
     if (!isResizing) return;
@@ -122,7 +126,8 @@
 
   function handleMouseUp() {
     isResizing = false;
-  }
+    $isNodeResizing = false;  // Reset global state
+}
 
   function preventNodeDrag(event: MouseEvent | TouchEvent) {
     event.stopPropagation();

@@ -3,6 +3,7 @@
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Trash2, Check } from 'lucide-svelte';
   import { onMount } from 'svelte';
+  import { isNodeResizing } from './stores';
 
   type $$Props = NodeProps;
   export let id: $$Props['id'];
@@ -48,8 +49,10 @@
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      $isNodeResizing = false;  // Reset global state on unmount
     };
   });
+
 
   function updateLabel(event) {
     const newLabel = event.target.value;
@@ -150,8 +153,9 @@
 }
 
 
-  function handleResizeStart(event: MouseEvent) {
+function handleResizeStart(event: MouseEvent) {
     isResizing = true;
+    $isNodeResizing = true;  // Set global resize state
     resizeStartX = event.clientX;
     resizeStartY = event.clientY;
     initialWidth = containerWidth;
@@ -169,6 +173,7 @@
 
   function handleMouseUp() {
     isResizing = false;
+    $isNodeResizing = false;  // Reset global resize state
   }
 
   function handleWheel(event: WheelEvent) {

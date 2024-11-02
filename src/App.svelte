@@ -26,7 +26,7 @@
   import SaveLoadPanel from './SaveLoadPanel.svelte';
   import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
-  import { selectedModel } from './stores';
+  import { selectedModel, isNodeResizing } from './stores';
   import { Zap, Square, Info } from 'lucide-svelte';
   
   import { onMount } from 'svelte';
@@ -512,9 +512,9 @@ let edges = writable<Edge[]>([
 
 
   let processing = false;
-  let isCreatingNodeViaDrag = false;
-  let lastClickTime = 0;
-  const clickThreshold = 200; // milliseconds
+let isCreatingNodeViaDrag = false;
+let lastClickTime = 0;
+const clickThreshold = 200;
 
   // Create a derived store for the highest node ID
   const highestNodeId = derived(nodes, $nodes => {
@@ -563,10 +563,19 @@ let edges = writable<Edge[]>([
   };
 
   const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
-  if (connectionState.isValid) {
-    isCreatingNodeViaDrag = false;
-    return;
-  }
+    // Get the current resize state
+    const currentIsResizing = get(isNodeResizing);
+    
+    // If we're currently resizing, don't create a new node
+    if (currentIsResizing) {
+        isCreatingNodeViaDrag = false;
+        return;
+    }
+
+    if (connectionState.isValid) {
+        isCreatingNodeViaDrag = false;
+        return;
+    }
 
   const sourceNodeId = connectionState.fromNode?.id ?? '1';
   const sourceNode = $nodes.find(node => node.id === sourceNodeId);
@@ -645,10 +654,13 @@ let edges = writable<Edge[]>([
   }
 };
 
-  function onPaneClick(event) {
+function onPaneClick(event) {
+    const currentIsResizing = get(isNodeResizing);
     const currentTime = Date.now();
-    if (isCreatingNodeViaDrag || (currentTime - lastClickTime < clickThreshold)) {
-      return;
+    
+    // Don't create node if we're resizing
+    if (currentIsResizing || isCreatingNodeViaDrag || (currentTime - lastClickTime < clickThreshold)) {
+        return;
     }
 
     const { clientX, clientY } = event.detail.event;
