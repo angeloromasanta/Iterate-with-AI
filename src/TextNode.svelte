@@ -119,14 +119,37 @@
   }
 
   async function copyText() {
-    try {
-      await navigator.clipboard.writeText(data.text);
-      copySuccess = true;
-      setTimeout(() => copySuccess = false, 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-    }
+  try {
+    let textToCopy = data.text;
+    console.log('Initial text to copy:', textToCopy);
+    console.log('All available nodes:', data.allNodes);
+    
+    // Replace references with actual content
+    const regex = /{([^}]+)}/g;
+    textToCopy = textToCopy.replace(regex, (match, label) => {
+      const referencedNode = data.allNodes?.find(n => n.label === label);
+      console.log(`Looking for node with label "${label}"`, referencedNode);
+      
+      // Access the text content from the referencedNode
+      if (referencedNode) {
+        const nodeContent = referencedNode.text;
+        console.log(`Found text content for "${label}":`, nodeContent);
+        return nodeContent || match;
+      }
+      
+      console.log(`No text content found for "${label}", keeping original reference`);
+      return match;
+    });
+
+    console.log('Final text to copy:', textToCopy);
+    await navigator.clipboard.writeText(textToCopy);
+    copySuccess = true;
+    setTimeout(() => copySuccess = false, 2000);
+  } catch (err) {
+    console.error('Failed to copy text: ', err);
   }
+}
+
 
   function handleResizeStart(event: MouseEvent) {
     isResizing = true;

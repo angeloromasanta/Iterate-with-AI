@@ -112,13 +112,30 @@
 
   // Function to get node data including all nodes
   function getNodeData(node) {
-    const allNodesData = get(nodes).map(n => ({ id: n.id, label: n.data.label }));
-    return {
-      ...node.data,
-      allNodes: allNodesData
+  console.log('Raw nodes before mapping:', $nodes);
+  
+  const allNodesData = $nodes.map(n => {
+    const nodeData = {
+      id: n.id,
+      label: n.data.label,
+      text: n.data.text,  // Get text directly from data
+      type: n.type,
+      results: n.data.results || []
     };
-  }
+    console.log(`Mapped data for node ${n.id}:`, nodeData);
+    return nodeData;
+  });
 
+  const returnData = {
+    label: node.data.label,
+    text: node.data.text,
+    results: node.data.results || [],
+    allNodes: allNodesData
+  };
+  
+  console.log('Full return data:', returnData);
+  return returnData;
+}
 
 
 
@@ -377,7 +394,7 @@ let edges = writable<Edge[]>([
   }
 
   const nodesWithAllNodesData = derived(nodes, $nodes => {
-    const allNodesData = $nodes.map(node => ({ id: node.id, label: node.data.label }));
+    const allNodesData = $nodes.map(node => ({ id: node.id, label: node.data.label, text: node.data.text  }));
     return $nodes.map(node => ({
       ...node,
       data: {
@@ -1034,7 +1051,7 @@ let edges = writable<Edge[]>([
 
   function handleImport(event) {
     const importedData = event.detail;
-    const allNodesData = importedData.nodes.map(n => ({ id: n.id, label: n.data.label }));
+    const allNodesData = importedData.nodes.map(n => ({ id: n.id, label: n.data.label, text: n.data.text  }));
 
     const nodesWithAllNodes = importedData.nodes.map(node => ({
       ...node,
