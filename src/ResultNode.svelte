@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
-  import { Copy, Minimize2, Maximize2, Check, Trash2 } from 'lucide-svelte';
+  import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2 } from 'lucide-svelte';
   import { onMount } from 'svelte';
 
   type $$Props = NodeProps;
@@ -23,6 +23,8 @@
   let initialHeight: number;
   let copySuccess = false;
   let resultsContainer: HTMLDivElement;
+  let editingIndex = -1;
+  let editingContent = '';
 
   onMount(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -35,6 +37,30 @@
 
   function updateLabel(event) {
     updateNode(id, { data: { ...data, label: event.target.value } });
+  }
+
+  function startEditing(index: number, content: string) {
+    editingIndex = index;
+    editingContent = content;
+  }
+
+  function saveEdit() {
+    if (editingIndex === -1) return;
+    
+    const newResults = [...(data.results || [])];
+    newResults[editingIndex] = editingContent;
+    
+    updateNode(id, {
+      data: { ...data, results: newResults }
+    });
+    
+    editingIndex = -1;
+    editingContent = '';
+  }
+
+  function cancelEdit() {
+    editingIndex = -1;
+    editingContent = '';
   }
 
   function changeNodeType(event) {
@@ -76,6 +102,7 @@
       .replace(/`(.*?)`/g, '<code>$1</code>');
   }
 
+
   function handleResizeStart(event: MouseEvent) {
     isResizing = true;
     resizeStartX = event.clientX;
@@ -108,6 +135,7 @@
     }
   }
 </script>
+
 
 <div class="custom" style="width: {containerWidth}px;">
   <Handle type="target" position={Position.Left} class="big-handle"/>
@@ -156,9 +184,35 @@
       {#if !completedResults.length && !streamingResult}
         <div>No results yet</div>
       {:else}
-        {#each completedResults as result}
+        {#each completedResults as result, index}
           <div class="result selectable">
-            {@html formatText(result)}
+            {#if editingIndex === index}
+              <div class="edit-container">
+                <textarea
+                  class="edit-textarea"
+                  bind:value={editingContent}
+                  on:keydown={(e) => {
+                    if (e.key === 'Enter' && e.ctrlKey) saveEdit();
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                />
+                <div class="edit-buttons">
+                  <button class="edit-button save" on:click={saveEdit}>Save</button>
+                  <button class="edit-button cancel" on:click={cancelEdit}>Cancel</button>
+                </div>
+              </div>
+            {:else}
+              <div class="result-content">
+                {@html formatText(result)}
+                <button 
+                  class="edit-icon-button" 
+                  on:click={() => startEditing(index, result)}
+                  title="Edit result"
+                >
+                  <Edit2 size={14} />
+                </button>
+              </div>
+            {/if}
           </div>
         {/each}
         {#if streamingResult}
@@ -264,4 +318,66 @@
     padding: 2px 4px;
     border-radius: 3px;
   }
+  .edit-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .edit-textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: inherit;
+    resize: vertical;
+  }
+
+  .edit-buttons {
+    display: flex;
+    gap: 8px;
+  }
+
+  .edit-button {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .edit-button.save {
+    background-color: #4CAF50;
+    color: white;
+  }
+
+  .edit-button.cancel {
+    background-color: #f44336;
+    color: white;
+  }
+
+  .result-content {
+  position: relative;
+  padding-bottom: 24px; /* Add space for the edit button */
+}
+
+.edit-icon-button {
+  position: sticky;
+  bottom: 4px;
+  float: right;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 1;
+}
+
+.result-content:hover .edit-icon-button {
+  opacity: 1;
+  }
+
 </style>
