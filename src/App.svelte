@@ -122,7 +122,6 @@
       type: n.type,
       results: n.data.results || []
     };
-    console.log(`Mapped data for node ${n.id}:`, nodeData);
     return nodeData;
   });
 
@@ -564,16 +563,59 @@ let edges = writable<Edge[]>([
   };
 
   const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
-    if (connectionState.isValid) {
-      isCreatingNodeViaDrag = false;
-      return;
-    }
+  if (connectionState.isValid) {
+    isCreatingNodeViaDrag = false;
+    return;
+  }
 
-    const sourceNodeId = connectionState.fromNode?.id ?? '1';
-    const sourceNode = $nodes.find(node => node.id === sourceNodeId);
-    const id = getId();
-    const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
-    const newNode: Node = {
+  const sourceNodeId = connectionState.fromNode?.id ?? '1';
+  const sourceNode = $nodes.find(node => node.id === sourceNodeId);
+  const id = getId();
+  const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
+  
+  // Function to recursively get all ancestor nodes
+  const getAncestorNodes = (nodeId: string, visited = new Set<string>()): Node[] => {
+    if (visited.has(nodeId)) return [];
+    visited.add(nodeId);
+    
+    const incomingEdges = $edges.filter(edge => edge.target === nodeId);
+    const ancestors = incomingEdges.flatMap(edge => {
+      const sourceNode = $nodes.find(n => n.id === edge.source);
+      if (!sourceNode) return [];
+      return [sourceNode, ...getAncestorNodes(sourceNode.id, visited)];
+    });
+    
+    return ancestors;
+  };
+
+  if (sourceNode?.type === 'result') {
+    // Get all ancestor nodes including immediate parents
+    const ancestors = getAncestorNodes(sourceNode.id);
+    
+    // Create references in order of appearance in the flow
+    const referenceText = [
+      ...ancestors.map(node => `{${node.data.label}}`),
+      `{${sourceNode.data.label}}`
+    ].join(' ');
+
+    const newNode = {
+      id,
+      type: 'text',
+      data: { 
+        label: getNewNodeLabel(), 
+        text: referenceText 
+      },
+      position: screenToFlowPosition({
+        x: clientX,
+        y: clientY
+      }),
+      origin: [0.5, 0.0]
+    };
+
+    nodes.update(n => [...n, newNode]);
+  } else {
+    // Original behavior for non-result nodes
+    const newNode = {
       id,
       type: 'result',
       data: { label: getNewNodeLabel(), text: '' },
@@ -585,22 +627,23 @@ let edges = writable<Edge[]>([
     };
 
     nodes.update(n => [...n, newNode]);
-    const newEdge = createEdge({
-      id: `e${sourceNodeId}-${id}`,
-      source: sourceNodeId,
-      target: id
-    });
-    edges.update(e => [...e, newEdge]);
+  }
 
-    isCreatingNodeViaDrag = false;
-    lastClickTime = Date.now();
+  const newEdge = createEdge({
+    id: `e${sourceNodeId}-${id}`,
+    source: sourceNodeId,
+    target: id
+  });
+  edges.update(e => [...e, newEdge]);
 
-    // Check if the source node is a text node and has content
-    if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-      // Run the new node automatically
-      await runConnectedNodes(newEdge.id);
-    }
-  };
+  isCreatingNodeViaDrag = false;
+  lastClickTime = Date.now();
+
+  // Only auto-run for text node sources
+  if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
+    await runConnectedNodes(newEdge.id);
+  }
+};
 
   function onPaneClick(event) {
     const currentTime = Date.now();
