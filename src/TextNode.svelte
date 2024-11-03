@@ -1,4 +1,3 @@
-<!-- TextNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Trash2, Check } from 'lucide-svelte';
@@ -15,6 +14,7 @@
   let showSuggestions = false;
   let cursorPosition = 0;
   let textarea: HTMLTextAreaElement;
+  let selectedSuggestionIndex = -1;
 
   let isMinimized = false;
   let containerWidth = 200;
@@ -26,8 +26,6 @@
   let initialHeight: number;
   let copySuccess = false;
 
-  console.log(`TextNode ${id} initialized with data:`, data);
-  
   if (!data.label) {
     data.label = 'Node';
   }
@@ -35,72 +33,112 @@
 
   onMount(() => {
     console.log(`TextNode ${id} mounted`);
-    textarea.addEventListener('keydown', (e) => {
-      if (showSuggestions && e.key === 'ArrowDown') {
-        e.preventDefault();
-        const suggestionList = document.querySelector('.suggestions');
-        if (suggestionList) {
-          (suggestionList.firstChild as HTMLElement).focus();
-        }
-      }
-    });
+    textarea.addEventListener('keydown', handleKeyDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     return () => {
+      textarea.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-      $isNodeResizing = false;  // Reset global state on unmount
+      $isNodeResizing = false;
     };
   });
 
+  function handleKeyDown(e: KeyboardEvent) {
+    if (!showSuggestions) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, suggestions.length - 1);
+        highlightSuggestion(selectedSuggestionIndex);
+        break;
+
+      case 'ArrowUp':
+        e.preventDefault();
+        selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, 0);
+        highlightSuggestion(selectedSuggestionIndex);
+        break;
+
+      case 'Tab':
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          selectSuggestion(suggestions[selectedSuggestionIndex]);
+        } else if (suggestions.length > 0) {
+          selectSuggestion(suggestions[0]);
+        }
+        break;
+
+      case 'Enter':
+        if (selectedSuggestionIndex >= 0) {
+          e.preventDefault();
+          selectSuggestion(suggestions[selectedSuggestionIndex]);
+        }
+        break;
+
+      case 'Escape':
+        showSuggestions = false;
+        selectedSuggestionIndex = -1;
+        break;
+    }
+  }
+
+  function highlightSuggestion(index: number) {
+    const suggestionElements = document.querySelectorAll('.suggestion-item');
+    suggestionElements.forEach((el, i) => {
+      if (i === index) {
+        (el as HTMLElement).classList.add('selected');
+        el.scrollIntoView({ block: 'nearest' });
+      } else {
+        (el as HTMLElement).classList.remove('selected');
+      }
+    });
+  }
 
   function updateLabel(event) {
     const newLabel = event.target.value;
-    console.log(`Updating label for node ${id}:`, newLabel);
     updateNode(id, { data: { ...data, label: newLabel } });
   }
 
   function updateText(event) {
     const newText = event.target.value;
-    console.log(`Updating text for node ${id}:`, newText);
     updateNode(id, { data: { ...data, text: newText } });
     checkForAutocomplete(newText);
   }
 
   function checkForAutocomplete(text: string) {
-      console.log(`Checking for autocomplete in node ${id}. allNodes:`, data.allNodes);
-      if (!data.allNodes || data.allNodes.length === 0) {
-        console.warn(`allNodes data is not available or empty for node ${id}`);
-        return;
-      }
-
-      const cursorPos = textarea.selectionStart;
-      const textBeforeCursor = text.slice(0, cursorPos);
-      const lastOpenBrace = textBeforeCursor.lastIndexOf('{');
-
-      if (lastOpenBrace !== -1 && textBeforeCursor.indexOf('}', lastOpenBrace) === -1) {
-        const searchTerm = textBeforeCursor.slice(lastOpenBrace + 1).toLowerCase();
-        suggestions = data.allNodes
-          .map(node => node.label)
-          .filter(label => label.toLowerCase().includes(searchTerm));
-        showSuggestions = suggestions.length > 0;
-        cursorPosition = cursorPos;
-        console.log(`Suggestions for node ${id}:`, suggestions);
-      } else {
-        showSuggestions = false;
-      }
+    if (!data.allNodes || data.allNodes.length === 0) {
+      return;
     }
-    console.log(`TextNode ${id} initialized with data:`, data);
-    
-    function selectSuggestion(suggestion: string) {
-      console.log(`Selecting suggestion for node ${id}:`, suggestion);
-      const text = data.text;
-      const textBeforeCursor = text.slice(0, cursorPosition);
-      const lastOpenBrace = textBeforeCursor.lastIndexOf('{');
-      const newText = text.slice(0, lastOpenBrace + 1) + suggestion + '}' + text.slice(cursorPosition);
-      updateNode(id, { data: { ...data, text: newText } });
+
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = text.slice(0, cursorPos);
+    const lastOpenBrace = textBeforeCursor.lastIndexOf('{');
+
+    if (lastOpenBrace !== -1 && textBeforeCursor.indexOf('}', lastOpenBrace) === -1) {
+      const searchTerm = textBeforeCursor.slice(lastOpenBrace + 1).toLowerCase();
+      suggestions = data.allNodes
+        .map(node => node.label)
+        .filter(label => label.toLowerCase().includes(searchTerm));
+      showSuggestions = suggestions.length > 0;
+      cursorPosition = cursorPos;
+      selectedSuggestionIndex = -1;
+    } else {
       showSuggestions = false;
+      selectedSuggestionIndex = -1;
     }
+  }
+
+  function selectSuggestion(suggestion: string) {
+    const text = data.text;
+    const textBeforeCursor = text.slice(0, cursorPosition);
+    const lastOpenBrace = textBeforeCursor.lastIndexOf('{');
+    const newText = text.slice(0, lastOpenBrace + 1) + suggestion + '}' + text.slice(cursorPosition);
+    updateNode(id, { data: { ...data, text: newText } });
+    showSuggestions = false;
+    selectedSuggestionIndex = -1;
+    textarea.focus();
+  }
 
   function changeNodeType(event) {
     const newType = event.target.value;
@@ -221,32 +259,33 @@ function handleResizeStart(event: MouseEvent) {
     />
   </div>
   {#if !isMinimized}
-    <div class="text-container" style="height: {containerHeight}px;">
-      <textarea
-        bind:this={textarea}
-        value={data.text}
-        on:input={updateText}
-        on:mousedown={onTextareaMouseDown}
-        on:wheel={handleWheel}
-        placeholder="Insert prompt here."
-      />
-      {#if showSuggestions}
-        <div class="suggestions">
-          {#each suggestions as suggestion}
-            <div
-              tabindex="0"
-              on:click={() => selectSuggestion(suggestion)}
-              on:keydown={(e) => e.key === 'Enter' && selectSuggestion(suggestion)}
-            >
-              {suggestion}
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-  {/if}
-  <div class="resize-handle" on:mousedown={handleResizeStart}></div>
-  <Handle type="source" position={Position.Right} class="big-handle"/>
+  <div class="text-container" style="height: {containerHeight}px;">
+    <textarea
+      bind:this={textarea}
+      value={data.text}
+      on:input={updateText}
+      on:mousedown={onTextareaMouseDown}
+      on:wheel={handleWheel}
+      placeholder="Insert prompt here."
+    />
+    {#if showSuggestions}
+      <div class="suggestions">
+        {#each suggestions as suggestion, index}
+          <div
+            class="suggestion-item"
+            class:selected={index === selectedSuggestionIndex}
+            on:click={() => selectSuggestion(suggestion)}
+            on:mouseenter={() => selectedSuggestionIndex = index}
+          >
+            {suggestion}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{/if}
+<div class="resize-handle" on:mousedown={handleResizeStart}></div>
+<Handle type="source" position={Position.Right} class="big-handle"/>
 </div>
 
 <style>
@@ -310,6 +349,16 @@ function handleResizeStart(event: MouseEvent) {
     padding: 2px;
     margin-left: 5px;
   }
+  .suggestion-item {
+    padding: 5px;
+    cursor: pointer;
+  }
+
+  .suggestion-item:hover,
+  .suggestion-item.selected {
+    background-color: #f0f0f0;
+  }
+
   .suggestions {
     position: absolute;
     background-color: white;
@@ -317,6 +366,8 @@ function handleResizeStart(event: MouseEvent) {
     max-height: 150px;
     overflow-y: auto;
     z-index: 1000;
+    width: calc(100% - 20px);  /* Account for padding */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
   .suggestions div {
     padding: 5px;
