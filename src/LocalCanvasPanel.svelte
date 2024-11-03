@@ -3,7 +3,9 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { defaultCanvases} from './defaultCanvases';
   import type { Node, Edge } from '@xyflow/svelte';
-  import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2 } from 'lucide-svelte';
+  // Add these to your existing imports
+import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload } from 'lucide-svelte';
+
 
   export let nodes;
   export let edges;
@@ -193,6 +195,71 @@
   function createNewCanvas() {
     dispatch('clear');
   }
+  
+  function exportCanvases() {
+  const exportData = {
+    canvasList: savedCanvases,
+    canvases: {}
+  };
+  
+  savedCanvases.forEach(name => {
+    const canvasData = localStorage.getItem(`canvas_${name}`);
+    if (canvasData) {
+      exportData.canvases[name] = JSON.parse(canvasData);
+    }
+  });
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `canvases-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importCanvases() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const importData = JSON.parse(text);
+      
+      if (!importData.canvasList || !importData.canvases) {
+        throw new Error('Invalid import file format');
+      }
+
+      // Import each canvas
+      importData.canvasList.forEach(name => {
+        const canvasData = importData.canvases[name];
+        if (canvasData) {
+          localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
+        }
+      });
+
+      // Update canvas list
+      const newCanvasList = [...new Set([...savedCanvases, ...importData.canvasList])];
+      savedCanvases = newCanvasList;
+      localStorage.setItem('canvasList', JSON.stringify(newCanvasList));
+
+      alert('Canvases imported successfully!');
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Error importing canvases. Please check the file format.');
+    }
+  };
+
+  input.click();
+}
+
 </script>
 
 <div class="panel" class:collapsed={!isPaneVisible}>
@@ -231,6 +298,7 @@
           </div>
         </div>
       {/each}
+      
     {/if}
 
     <button class="add-button" on:click={createNewCanvas}>
@@ -238,6 +306,17 @@
       Add new canvas
     </button>
   </div>
+  <div class="import-export-buttons">
+    <button class="import-button" on:click={importCanvases}>
+      <Upload size={18} />
+      Import Canvases
+    </button>
+    <button class="export-button" on:click={exportCanvases}>
+      <Download size={18} />
+      Export Canvases
+    </button>
+  </div>
+  
 {/if}
 </div>
 
@@ -393,6 +472,45 @@
   padding: 16px;
   font-style: italic;
   font-size: 12px;
+}
+.import-export-buttons {
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #eee;
+}
+
+.import-button, .export-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.import-button {
+  background: #f5f5f5;  /* Grey background */
+  border: 1px solid #e0e0e0;  /* Light grey border */
+  color: #666;  /* Grey text */
+}
+
+.import-button:hover {
+  background: #ffe6d1;
+}
+
+.export-button {
+  background: #f5f5f5;  /* Grey background */
+  border: 1px solid #e0e0e0;  /* Light grey border */
+  color: #666;  /* Grey text */
+}
+
+.export-button:hover {
+  background: #d1ffe6;
 }
 
 
