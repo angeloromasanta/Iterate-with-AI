@@ -628,24 +628,17 @@ const getNewNodeLabel = () => {
     };
 
     nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
-    } else {
-    const models = [$selectedModel, ...$secondaryModels];
+      } else {
+    // Store the models we want to use at the start
+    const modelsToProcess = [$selectedModel, ...$secondaryModels];
     const basePosition = screenToFlowPosition({
       x: clientX,
       y: clientY
     });
     
-    // Get the DOM element and store its current value
-    const selectElement = document.querySelector('.primary-select') as HTMLSelectElement;
-    const displayValue = selectElement?.value;
-    
-    // Create and run nodes for each model
-    for (let i = 0; i < models.length; i++) {
-      const model = models[i];
-      
-      // Update store without affecting UI
-      selectedModel.set(model);
-      if (selectElement) selectElement.value = displayValue;
+    // Create and run nodes for each model without changing the UI state
+    for (let i = 0; i < modelsToProcess.length; i++) {
+      const model = modelsToProcess[i];
       
       const id = getId();
       const newNode = {
@@ -673,12 +666,13 @@ const getNewNodeLabel = () => {
 
       // Run the node if source has text
       if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
+        // Temporarily set the selected model just for the API call
+        const currentModel = get(selectedModel);
+        selectedModel.set(model);
         await runConnectedNodes(newEdge.id);
+        selectedModel.set(currentModel);
       }
     }
-    
-    // Restore original model in store
-    selectedModel.set(models[0]);
   }
 
   isCreatingNodeViaDrag = false;

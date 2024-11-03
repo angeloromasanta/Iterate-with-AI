@@ -1,4 +1,3 @@
-<!-- ResultNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2 } from 'lucide-svelte';
@@ -27,17 +26,33 @@
   let resultsContainer: HTMLDivElement;
   let editingIndex = -1;
   let editingContent = '';
+  let windowHeight: number;
 
   onMount(() => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('resize', updateWindowHeight);
+    updateWindowHeight();
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('resize', updateWindowHeight);
       $isNodeResizing = false;
     };
   });
 
+  function updateWindowHeight() {
+    windowHeight = window.innerHeight;
+  }
+
+  // Calculate dynamic height when streaming
+  $: if (data.streamingResult && !isResizing) {
+    const maxHeight = windowHeight * 0.7;
+    const contentHeight = resultsContainer?.scrollHeight || 60;
+    containerHeight = Math.min(maxHeight, contentHeight);
+  }
+
+  // Rest of the functions remain the same
   function updateLabel(event) {
     updateNode(id, { data: { ...data, label: event.target.value } });
   }
@@ -105,30 +120,25 @@
       .replace(/`(.*?)`/g, '<code>$1</code>');
   }
 
-
   function handleResizeStart(event: MouseEvent) {
-    console.log('Resize start');
     isResizing = true;
-    $isNodeResizing = true;  // Set global state
+    $isNodeResizing = true;
     resizeStartX = event.clientX;
     resizeStartY = event.clientY;
     initialWidth = containerWidth;
     initialHeight = containerHeight;
     event.stopPropagation();
-    event.preventDefault(); // Add this line
-}
+    event.preventDefault();
+  }
 
-function handleMouseUp() {
-    console.log('Resize end');
+  function handleMouseUp() {
     isResizing = false;
     $isNodeResizing = false;
-    
-    // Prevent any clicks for a short duration after resize
     const currentTime = Date.now();
     window.dispatchEvent(new CustomEvent('nodeResizeEnd', { 
         detail: { timestamp: currentTime } 
     }));
-}
+  }
 
   function handleMouseMove(event: MouseEvent) {
     if (!isResizing) return;
@@ -137,7 +147,6 @@ function handleMouseUp() {
     containerWidth = Math.max(200, initialWidth + dx);
     containerHeight = Math.max(60, initialHeight + dy);
   }
-
 
   function preventNodeDrag(event: MouseEvent | TouchEvent) {
     event.stopPropagation();
@@ -151,7 +160,7 @@ function handleMouseUp() {
   }
 </script>
 
-
+<!-- Rest of the template and style remain exactly the same -->
 <div class="custom" style="width: {containerWidth}px;">
   <Handle type="target" position={Position.Left} class="big-handle"/>
   <div class="header">
@@ -353,7 +362,6 @@ function handleMouseUp() {
     flex-direction: column;
     gap: 8px;
   }
-
   .edit-textarea {
     width: 100%;
     min-height: 100px;
@@ -364,12 +372,10 @@ function handleMouseUp() {
     font-size: inherit;
     resize: vertical;
   }
-
   .edit-buttons {
     display: flex;
     gap: 8px;
   }
-
   .edit-button {
     padding: 4px 8px;
     border: none;
@@ -377,37 +383,31 @@ function handleMouseUp() {
     cursor: pointer;
     font-size: 12px;
   }
-
   .edit-button.save {
     background-color: #4CAF50;
     color: white;
   }
-
   .edit-button.cancel {
     background-color: #f44336;
     color: white;
   }
-
   .result-content {
-  position: relative;
-  padding-bottom: 24px; /* Add space for the edit button */
-}
-
-.edit-icon-button {
-  position: sticky;
-  bottom: 4px;
-  float: right;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 1;
-}
-
-.result-content:hover .edit-icon-button {
-  opacity: 1;
+    position: relative;
+    padding-bottom: 24px;
   }
-
+  .edit-icon-button {
+    position: sticky;
+    bottom: 4px;
+    float: right;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 1;
+  }
+  .result-content:hover .edit-icon-button {
+    opacity: 1;
+  }
 </style>
