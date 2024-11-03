@@ -340,18 +340,29 @@ function importCanvases() {
   width: auto;
 }
 
-.toggle-button {
-  position: absolute;
-  right: -30px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: white;
-  border: 1px solid #ccc;
-  border-radius: 0 4px 4px 0;
-  padding: 6px;
-  cursor: pointer;
-  z-index: 4;
-}
+  .toggle-button {
+    position: absolute;
+    right: -24px;
+    top: 20px;
+    background: #f8faff;
+    border: 1px solid #ccc;
+    border-left: none;
+    border-radius: 0 4px 4px 0;
+    padding: 4px;
+    cursor: pointer;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    width: 24px;
+    color: #666;
+  }
+
+  .toggle-button:hover {
+    background: #fff;
+    color: #333;
+  }
 
 .main-title {
   padding: 15px;

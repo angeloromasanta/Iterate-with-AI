@@ -249,7 +249,7 @@ export const defaultCanvases = {
       },
     ],
   },
-  "Academic Paper Review": {
+  "Paper Writer": {
     nodes: [
       {
         id: "1",
@@ -515,7 +515,7 @@ export const defaultCanvases = {
       },
     ],
   },
-  "Basic Essay Flow": {
+  "Reviewer Assistant": {
     nodes: [
       {
         id: "1",

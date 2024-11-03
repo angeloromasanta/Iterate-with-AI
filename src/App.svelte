@@ -1311,9 +1311,6 @@ function onPaneClick(event) {
   }
 
 
-
-
-
   .custom-controls {
     position: absolute;
     right: 20px;
@@ -1442,14 +1439,17 @@ function onPaneClick(event) {
     font-style: italic;
   }
 
-  @media (max-width: 768px) {
-    .custom-controls {
-      bottom: 80px; /* Adjust this value as needed */
-    }
+    @media (max-width: 768px) {
+      .custom-controls {
+        bottom: 20px; /* Keep it at bottom even on mobile */
+        right: 20px;
+      }
 
-    :global(.svelte-flow__controls) {
-      bottom: 140px; /* Adjust this value as needed */
-    }
+      :global(.svelte-flow__controls) {
+        bottom: 90px; /* Move the flow controls above the button */
+        right: 20px;
+      }
+    
     .title {
       font-size: 20px; /* Slightly smaller font size for mobile */
     }
