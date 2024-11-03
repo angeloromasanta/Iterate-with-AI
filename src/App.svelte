@@ -75,9 +75,15 @@
       edges.update(e => [...e]);
     }
   }
-  
-  onMount(() => {
-    window.addEventListener('edgeAdded', (event) => {
+
+  let lastResizeEndTime = 0;
+
+// Add this in your onMount:
+onMount(() => {
+    window.addEventListener('nodeResizeEnd', (event: CustomEvent) => {
+        lastResizeEndTime = event.detail.timestamp;
+    });
+      window.addEventListener('edgeAdded', (event) => {
     });
     loadStateFromLocalStorage();
 
@@ -653,25 +659,47 @@ const clickThreshold = 200;
 function onPaneClick(event) {
     const currentIsResizing = get(isNodeResizing);
     const currentTime = Date.now();
+    const timeSinceResize = currentTime - lastResizeEndTime;
     
-    // Don't create node if we're resizing
+    console.log('Pane Click Debug:', {
+        isResizing: currentIsResizing,
+        isCreatingNodeViaDrag,
+        timeSinceLastClick: currentTime - lastClickTime,
+        timeSinceResize,
+        event: event.detail
+    });
+
+    // Block node creation for 300ms after resize ends
+    if (timeSinceResize < 300) {
+        console.log('Prevented node creation: Too soon after resize');
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+    }
+
+    // Don't create node if we're resizing or in drag mode
     if (currentIsResizing || isCreatingNodeViaDrag || (currentTime - lastClickTime < clickThreshold)) {
+        console.log('Prevented node creation:', {
+            reason: currentIsResizing ? 'Currently resizing' : 
+                   isCreatingNodeViaDrag ? 'Drag in progress' : 
+                   'Click too soon'
+        });
         return;
     }
 
     const { clientX, clientY } = event.detail.event;
     const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
     const newNode = {
-      id: getId(),
-      type: 'text',
-      position: flowPosition,
-      data: { label: getNewNodeLabel(), text: '' }
+        id: getId(),
+        type: 'text',
+        position: flowPosition,
+        data: { label: getNewNodeLabel(), text: '' }
     };
 
+    console.log('Creating new node:', newNode);
     nodes.update(n => [...n, newNode]);
-    lastClickTime = currentTime; // Update the last click time
-  }
-
+    lastClickTime = currentTime;
+}
 
 
   function deleteNode(id: string) {
@@ -1219,6 +1247,7 @@ function onPaneClick(event) {
     {getNodeData}
     {defaultEdgeOptions}
     fitView
+    minZoom={0.1}
     on:paneclick={onPaneClick}
     onedgecreate={handleEdgeCreate}
     onconnectend={handleConnectEnd}

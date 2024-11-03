@@ -1,3 +1,4 @@
+<!-- ResultNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2 } from 'lucide-svelte';
@@ -106,6 +107,7 @@
 
 
   function handleResizeStart(event: MouseEvent) {
+    console.log('Resize start');
     isResizing = true;
     $isNodeResizing = true;  // Set global state
     resizeStartX = event.clientX;
@@ -113,8 +115,20 @@
     initialWidth = containerWidth;
     initialHeight = containerHeight;
     event.stopPropagation();
+    event.preventDefault(); // Add this line
 }
 
+function handleMouseUp() {
+    console.log('Resize end');
+    isResizing = false;
+    $isNodeResizing = false;
+    
+    // Prevent any clicks for a short duration after resize
+    const currentTime = Date.now();
+    window.dispatchEvent(new CustomEvent('nodeResizeEnd', { 
+        detail: { timestamp: currentTime } 
+    }));
+}
 
   function handleMouseMove(event: MouseEvent) {
     if (!isResizing) return;
@@ -124,10 +138,6 @@
     containerHeight = Math.max(60, initialHeight + dy);
   }
 
-  function handleMouseUp() {
-    isResizing = false;
-    $isNodeResizing = false;  // Reset global state
-}
 
   function preventNodeDrag(event: MouseEvent | TouchEvent) {
     event.stopPropagation();
@@ -228,7 +238,22 @@
       {/if}
     </div>
   {/if}
-  <div class="resize-handle" on:mousedown={handleResizeStart}></div>
+  <div 
+    class="resize-handle" 
+    on:mousedown={(e) => {
+        handleResizeStart(e);
+        e.stopPropagation();
+        e.preventDefault();
+    }}
+    on:click={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+    }}
+    on:mouseup={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+    }}
+></div>
   <Handle type="source" position={Position.Right} class="big-handle"/>
 </div>
 
