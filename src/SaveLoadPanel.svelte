@@ -1,4 +1,3 @@
-<!-- SaveLoadPanel.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Node, Edge } from '@xyflow/svelte';
@@ -12,29 +11,32 @@
   let isDragging = false;
   let startY: number;
   let startHeight: number;
+  
+  // Minimum height threshold for showing content
+  const MIN_HEIGHT_THRESHOLD = 50;
 
   const dispatch = createEventDispatcher();
 
   function simplifyNode(node) {
-  const { id, type, data, position, measured, selected, class: nodeClass } = node;
-  const roundedPosition = {
-    x: Math.round(position.x / 10) * 10,
-    y: Math.round(position.y / 10) * 10
-  };
-  return {
-    id,
-    type,
-    data: { 
-      label: data.label,
-      text: data.text,
-      results: type === 'result' ? data.results : undefined
-    },
-    position: roundedPosition,
-    measured,
-    selected,
-    class: nodeClass
-  };
-}
+    const { id, type, data, position, measured, selected, class: nodeClass } = node;
+    const roundedPosition = {
+      x: Math.round(position.x / 10) * 10,
+      y: Math.round(position.y / 10) * 10
+    };
+    return {
+      id,
+      type,
+      data: { 
+        label: data.label,
+        text: data.text,
+        results: type === 'result' ? data.results : undefined
+      },
+      position: roundedPosition,
+      measured,
+      selected,
+      class: nodeClass
+    };
+  }
 
   function simplifyEdge(edge) {
     const { id, source, target, data } = edge;
@@ -78,7 +80,7 @@
   function resize(event: MouseEvent) {
     if (isDragging) {
       const diff = startY - event.clientY;
-      panelHeight = Math.max(50, Math.min(startHeight + diff, window.innerHeight - 100));
+      panelHeight = Math.max(20, Math.min(startHeight + diff, window.innerHeight - 100));
       dispatch('resize', { height: panelHeight });
     }
   }
@@ -92,19 +94,23 @@
   function handleLoadTemplate(event) {
     dispatch('loadTemplate', event.detail);
   }
+
+  $: isContentVisible = panelHeight > MIN_HEIGHT_THRESHOLD;
 </script>
 
 <div class="save-load-panel" style="height: {panelHeight}px;">
   <div class="resize-handle" on:mousedown={startResize}></div>
-  <div class="panel-content">
-    <textarea bind:value={textareaContent} placeholder="Paste flow data here to import"></textarea>
-    <div class="button-container">
-      <TemplateDropdown on:loadTemplate={handleLoadTemplate} />
-      <button on:click={exportFlow}>Export</button>
-      <button on:click={importFlow}>Import</button>
-      <button on:click={clearFlow} class="clear-button">Clear</button>
+  {#if isContentVisible}
+    <div class="panel-content">
+      <textarea bind:value={textareaContent} placeholder="Paste flow data here to import"></textarea>
+      <div class="button-container">
+        <TemplateDropdown on:loadTemplate={handleLoadTemplate} />
+        <button on:click={exportFlow}>Export</button>
+        <button on:click={importFlow}>Import</button>
+        <button on:click={clearFlow} class="clear-button">Clear</button>
+      </div>
     </div>
-  </div>
+  {/if}
 </div>
 
 <style>
@@ -118,6 +124,7 @@
     display: flex;
     flex-direction: column;
     z-index: 1000;
+    min-height: 20px;
   }
 
   .resize-handle {
@@ -127,10 +134,15 @@
     cursor: ns-resize;
   }
 
+  .resize-handle:hover {
+    background-color: #ccc;
+  }
+
   .panel-content {
     display: flex;
     height: calc(100% - 5px);
     padding: 10px;
+    overflow: hidden;
   }
 
   textarea {
@@ -145,6 +157,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    min-width: fit-content;
   }
 
   button {

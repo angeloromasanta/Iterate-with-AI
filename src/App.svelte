@@ -46,14 +46,12 @@
     localStorage.setItem('canvasState', JSON.stringify(state));
   }
 
-  // Function to load the state from local storage
   function loadStateFromLocalStorage() {
     const savedState = localStorage.getItem('canvasState');
     if (savedState) {
       const state = JSON.parse(savedState);
       nodes.set(state.nodes);
 
-      // Recreate edges with proper callback functions
       const loadedEdges = state.edges.map(edge => createEdge({
         id: edge.id,
         source: edge.source,
@@ -101,7 +99,7 @@
       height: 15,
       color: '#000000'
     },
-    style: 'stroke-width: 2px; stroke: #000000; fill: none;', // Add 'fill: none;'
+    style: 'stroke-width: 2px; stroke: #000000; fill: none;', 
     type: 'custom',
   };
 
@@ -112,13 +110,12 @@
 
   // Function to get node data including all nodes
   function getNodeData(node) {
-  console.log('Raw nodes before mapping:', $nodes);
   
   const allNodesData = $nodes.map(n => {
     const nodeData = {
       id: n.id,
       label: n.data.label,
-      text: n.data.text,  // Get text directly from data
+      text: n.data.text,  
       type: n.type,
       results: n.data.results || []
     };
@@ -132,7 +129,6 @@
     allNodes: allNodesData
   };
   
-  console.log('Full return data:', returnData);
   return returnData;
 }
 
@@ -140,7 +136,7 @@
 
   
   const edgeTypes: EdgeTypes = {
-    custom: CustomEdge as any // Use type assertion here
+    custom: CustomEdge as any 
   };
 
 
@@ -381,7 +377,7 @@ let edges = writable<Edge[]>([
   createEdge({ id: 'e5-6', source: '5', target: '6' }),
   createEdge({ id: 'e6-7', source: '6', target: '7' }),
   createEdge({ id: 'e7-8', source: '7', target: '8' }),
-  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }), // Iteration edge
+  createEdge({ id: 'e8-5', source: '8', target: '5', type: 'iteration' }),
   createEdge({ id: 'e5-9', source: '5', target: '9' }),
   createEdge({ id: 'e9-10', source: '9', target: '10' }),
 ]);
@@ -425,7 +421,7 @@ let edges = writable<Edge[]>([
 
       // Replace references with actual values and collect referenced nodes
       const regex = /{([^}]+)}/g;
-      processedText = processedText.replace(regex, (match, label) => {
+      processedText = processedText.replace(regex, (match, label) => { //Property 'replace' does not exist on type 'unknown'.
         const referencedNode = $nodes.find(n => n.data.label === label);
         if (referencedNode) {
           referencedNodes.push(referencedNode);
@@ -461,7 +457,7 @@ let edges = writable<Edge[]>([
       await new Promise(resolve => setTimeout(resolve, 100));
 
       let fullResponse = '';
-  const response = await getLLMResponse(processedText, (chunk) => {
+  const response = await getLLMResponse(processedText, (chunk) => { //Argument of type 'unknown' is not assignable to parameter of type 'string'.
     fullResponse += chunk;
     // Update the target node with the partial response
     nodes.update(n => n.map(node => {
@@ -471,7 +467,7 @@ let edges = writable<Edge[]>([
           data: {
             ...node.data,
             streamingResult: fullResponse,
-            results: [...(node.data.results || [])]
+            results: [...(node.data.results || [])] //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
           }
         };
       }
@@ -487,7 +483,7 @@ let edges = writable<Edge[]>([
         data: {
           ...node.data,
           streamingResult: null,
-          results: [...(node.data.results || []), response]
+          results: [...(node.data.results || []), response] //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
         }
       };
     }
@@ -621,7 +617,7 @@ const clickThreshold = 200;
       origin: [0.5, 0.0]
     };
 
-    nodes.update(n => [...n, newNode]);
+    nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
   } else {
     // Original behavior for non-result nodes
     const newNode = {
@@ -635,7 +631,7 @@ const clickThreshold = 200;
       origin: [0.5, 0.0]
     };
 
-    nodes.update(n => [...n, newNode]);
+    nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
   }
 
   const newEdge = createEdge({
@@ -738,7 +734,7 @@ function onPaneClick(event) {
         if (!dependencies[neighbor]) {
           dependencies[neighbor] = new Set();
         }
-        if (!Array.from(cycles).some(cycle => cycle.has(node) && cycle.has(neighbor))) {
+        if (!Array.from(cycles).some(cycle => cycle.has(node) && cycle.has(neighbor))) {//Property 'has' does not exist on type 'unknown'.
           dependencies[neighbor].add(node);
         }
       }
@@ -747,23 +743,18 @@ function onPaneClick(event) {
   }
 
   function getLoopCounts(edges, cycles) {
-    console.log('Getting loop counts', { edges, cycles });
     const loopCounts = new Map();
     for (const cycle of cycles) {
       const cycleArray = Array.from(cycle);
       const lastNode = cycleArray[cycleArray.length - 1];
       const firstNode = cycleArray[0];
       const loopEdge = edges.find(e => e.source === lastNode && e.target === firstNode);
-      console.log('Checking loop edge', { lastNode, firstNode, loopEdge });
       if (loopEdge && loopEdge.data && typeof loopEdge.data.loopCount === 'number') {
         loopCounts.set(firstNode, loopEdge.data.loopCount);
-        console.log(`Set loop count for node ${firstNode} to ${loopEdge.data.loopCount}`);
       } else {
         loopCounts.set(firstNode, 2); // Default to 2 if not specified
-        console.log(`Set default loop count for node ${firstNode} to 2`);
       }
     }
-    console.log('Calculated loop counts', loopCounts);
     return loopCounts;
   }
 
@@ -776,7 +767,6 @@ function onPaneClick(event) {
     return;
   }
 
-  console.log("Starting onBigButtonClick");
   isRunning = true;
   shouldStop = false;
   processing = true;
@@ -790,17 +780,12 @@ function onPaneClick(event) {
     const dependencies = findDependencies(graph, cycles);
     const loopCounts = getLoopCounts(allEdges, cycles);
 
-    console.log("Graph:", graph);
-    console.log("Cycles:", cycles);
-    console.log("Dependencies:", dependencies);
-    console.log("Loop counts:", loopCounts);
 
     const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
-    console.log("Execution order:", executionOrder);
+
 
     for (const nodeId of executionOrder) {
       if (shouldStop) {
-        console.log("Execution stopped by user");
         break;
       }
 
@@ -820,7 +805,6 @@ function onPaneClick(event) {
       }
     }
   } catch (error) {
-    console.error("Error during execution:", error);
   } finally {
     isRunning = false;
     shouldStop = false;
@@ -833,16 +817,15 @@ function onPaneClick(event) {
     const visited = new Map(nodes.map(node => [node.id, 0]));
 
     function canExecute(nodeId) {
-      return Array.from(dependencies[nodeId] || []).every(depId => visited.get(depId) > 0);
+      return Array.from(dependencies[nodeId] || []).every(depId => visited.get(depId) > 0);//Operator '>' cannot be applied to types 'unknown' and 'number'.
     }
 
     function isInCycle(nodeId) {
-      return Array.from(cycles).some(cycle => cycle.has(nodeId));
+      return Array.from(cycles).some(cycle => cycle.has(nodeId));//Property 'has' does not exist on type 'unknown'.
     }
 
     function dfs(nodeId, depth = 0, loopEnd = null) {
       const indent = "  ".repeat(depth);
-      console.log(`${indent}Visiting node: ${nodeId}`);
 
       let maxVisits;
       if (loopCounts.has(nodeId)) {
@@ -856,30 +839,26 @@ function onPaneClick(event) {
 
 
       if (visited.get(nodeId) >= maxVisits) {
-        console.log(`${indent}Node ${nodeId} already visited ${visited.get(nodeId)} times, max is ${maxVisits}`);
         return;
       }
 
       if (!canExecute(nodeId)) {
-        console.log(`${indent}Cannot execute node ${nodeId} yet, dependencies not met`);
         return;
       }
 
-      visited.set(nodeId, visited.get(nodeId) + 1);
+      visited.set(nodeId, visited.get(nodeId) + 1);//Operator '+' cannot be applied to types 'unknown' and '1'.
       executionOrder.push(nodeId);
-      console.log(`${indent}Executed node: ${nodeId} (visit ${visited.get(nodeId)})`);
 
       for (const neighbor of graph.get(nodeId) || []) {
         dfs(neighbor, depth + 1, loopEnd);
       }
 
       if (nodeId === loopEnd && visited.get(nodeId) < maxVisits) {
-          console.log(`${indent}Revisiting cycle ending at node ${nodeId}`);
-          const cycle = Array.from(cycles).find(c => c.has(nodeId));
-          for (const cycleNode of cycle) {
-              visited.set(cycleNode, 0);  // Only reset nodes that haven't reached max visits
+          const cycle = Array.from(cycles).find(c => c.has(nodeId)); //Property 'has' does not exist on type 'unknown'.
+          for (const cycleNode of cycle) { //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
+              visited.set(cycleNode, 0);  
           }
-          dfs(cycle[0], depth, loopEnd);  // Start from the first node in the cycle
+          dfs(cycle[0], depth, loopEnd);  
       }
       }
 
@@ -905,7 +884,6 @@ function onPaneClick(event) {
 
 
   async function processNode(nodeId) {
-    console.log(`Processing node: ${nodeId}`);
     const node = $nodes.find(n => n.id === nodeId);
 
     if (node.type === 'text') {
@@ -928,7 +906,7 @@ function onPaneClick(event) {
 
         // Replace references with actual values and collect referenced nodes
         const regex = /{([^}]+)}/g;
-        processedText = processedText.replace(regex, (match, label) => {
+        processedText = processedText.replace(regex, (match, label) => { //Property 'replace' does not exist on type 'unknown'.
           const referencedNode = $nodes.find(n => n.data.label === label);
           if (referencedNode) {
             referencedNodes.push(referencedNode);
@@ -964,7 +942,7 @@ function onPaneClick(event) {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Get response from LLM
-        const response = await getLLMResponse(processedText);
+        const response = await getLLMResponse(processedText); //Expected 2 arguments, but got 1.
 
         // Update the result node with the response
         nodes.update(n => n.map(n => {
@@ -973,7 +951,7 @@ function onPaneClick(event) {
               ...n,
               data: {
                 ...n.data,
-                results: [...(n.data.results || []), response]
+                results: [...(n.data.results || []), response] //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
               }
             };
           }
@@ -1009,7 +987,6 @@ function onPaneClick(event) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    console.log(`Finished processing node: ${nodeId}`);
   }
 
 
@@ -1083,25 +1060,21 @@ function onPaneClick(event) {
 
   
   function handleConnect(event) {
-    console.log('Connect event fired:', event.detail);
     const params = event.detail;
     const newEdge = createEdge({
       id: `e${params.source}-${params.target}`,
       source: params.source,
       target: params.target
     });
-    console.log('New edge created:', newEdge);
     edges.update(eds => [...eds, newEdge]);
   }
 
-  function handleEdgeCreate(connection: Connection): Edge {
-    console.log('Edge create event fired:', connection);
+  function handleEdgeCreate(connection: Connection): Edge { //Cannot find name 'Connection'.
     const newEdge = createEdge({
       id: `e${connection.source}-${connection.target}`,
       source: connection.source,
       target: connection.target
     });
-    console.log('New edge created:', newEdge);
     edges.update(eds => [...eds, newEdge]);
     return newEdge;
   }
@@ -1146,9 +1119,6 @@ function onPaneClick(event) {
 
     // Reset the new node counter after import
     nextNewNodeNumber.set(1);
-
-    console.log('Imported nodes with allNodes:', nodesWithAllNodes);
-    console.log('Imported edges with callbacks:', importedEdges);
 
     // Force a re-render of the SvelteFlow component
     nodes.update(n => [...n]);
