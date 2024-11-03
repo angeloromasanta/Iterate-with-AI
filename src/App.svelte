@@ -23,7 +23,7 @@
   import TextNode from './TextNode.svelte';
   import ResultNode from './ResultNode.svelte';
   import CustomEdge from './CustomEdge.svelte';
-  import SaveLoadPanel from './SaveLoadPanel.svelte';
+  import LocalCanvasPanel from './LocalCanvasPanel.svelte';
   import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
   import { selectedModel, isNodeResizing, secondaryModels } from './stores';
@@ -1136,8 +1136,20 @@ function onPaneClick(event) {
   }
 
   function handleImport(event) {
-    const importedData = event.detail;
-    const allNodesData = importedData.nodes.map(n => ({ id: n.id, label: n.data.label, text: n.data.text  }));
+  console.log('Handling import with data:', event.detail);
+  const importedData = event.detail;
+  
+  if (!importedData || !Array.isArray(importedData.nodes) || !Array.isArray(importedData.edges)) {
+    console.error('Invalid import data structure:', importedData);
+    return;
+  }
+
+  try {
+    const allNodesData = importedData.nodes.map(n => ({ 
+      id: n.id, 
+      label: n.data.label, 
+      text: n.data.text 
+    }));
 
     const nodesWithAllNodes = importedData.nodes.map(node => ({
       ...node,
@@ -1167,19 +1179,11 @@ function onPaneClick(event) {
 
     edges.set(importedEdges);
     updateCyclicEdges();
-
-    // Ensure nextId is updated after import
-    highestNodeId.subscribe(value => {
-      nextId.set(value + 1);
-    })();
-
-    // Reset the new node counter after import
-    nextNewNodeNumber.set(1);
-
-    // Force a re-render of the SvelteFlow component
-    nodes.update(n => [...n]);
-    edges.update(e => [...e]);
+  } catch (error) {
+    console.error('Error processing import data:', error);
+    alert('Error importing canvas data');
   }
+}
   
   // Function to clear the graph
   function handleClear() {
@@ -1192,11 +1196,6 @@ function onPaneClick(event) {
     nextNewNodeNumber.set(1);
   }
   
-  let saveLoadPanelHeight = 150; // Default height
-
-  function handlePanelResize(event) {
-    saveLoadPanelHeight = event.detail.height;
-  }
 
   async function handleLoadTemplate(event) {
     const templateFile = event.detail;
@@ -1248,25 +1247,18 @@ function onPaneClick(event) {
 </script>
 
 
-<main style="height: calc(100vh - {saveLoadPanelHeight}px);">
-  <div class="title">Iterate with AI</div>
-  <div class="info-icon" on:click={toggleInstructions}>
-    <Info size={24} />
-  </div>
-  {#if showInstructions}
-    <div class="instructions" transition:fade>
-      <h3>Quick Instructions</h3>
-      <ol>
-        <li>Add nodes with click or by dragging.</li>
-        <li>Run individual nodes by clicking their connection. Run all nodes by pressing the thunder. Make sure to choose your model.</li>
-        <li>Import or export models by copy or pasting below.</li>
-      </ol>
-      <p>Developed by <a href="https://angeloromasanta.com"> Angelo Romasanta</a></p>
-    </div>
-  {/if}
+<main>
+
   <div class="model-selector-container">
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
+  <LocalCanvasPanel 
+  nodes={nodes} 
+  edges={edges} 
+  on:load={handleImport}
+  on:clear={handleClear}
+/>
+
   <SvelteFlow
     {nodes}
     {edges}
@@ -1296,14 +1288,6 @@ function onPaneClick(event) {
 </main>
   
 
-<SaveLoadPanel 
-  nodes={$nodes} 
-  edges={$edges} 
-  on:import={handleImport} 
-  on:clear={handleClear}
-  on:resize={handlePanelResize} 
-  on:loadTemplate={handleLoadTemplate}
-/>
 
 
 <style>
