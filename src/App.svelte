@@ -628,7 +628,7 @@ const getNewNodeLabel = () => {
     };
 
     nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
-      } else {
+    } else {
     // Store the models we want to use at the start
     const modelsToProcess = [$selectedModel, ...$secondaryModels];
     const basePosition = screenToFlowPosition({
@@ -636,11 +636,11 @@ const getNewNodeLabel = () => {
       y: clientY
     });
     
-    // Create and run nodes for each model without changing the UI state
+    // Create all nodes and start their processing immediately
     for (let i = 0; i < modelsToProcess.length; i++) {
       const model = modelsToProcess[i];
-      
       const id = getId();
+      
       const newNode = {
         id,
         type: 'result',
@@ -655,22 +655,25 @@ const getNewNodeLabel = () => {
         origin: [0.5, 0.0]
       };
 
-      nodes.update(n => [...n, newNode]);
-
       const newEdge = createEdge({
         id: `e${sourceNodeId}-${id}`,
         source: sourceNodeId,
         target: id
       });
+
+      // Add small delay between node creation
+      await new Promise(resolve => setTimeout(resolve, 50));
+      nodes.update(n => [...n, newNode]);
       edges.update(e => [...e, newEdge]);
 
-      // Run the node if source has text
+      // Start processing without awaiting
       if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-        // Temporarily set the selected model just for the API call
         const currentModel = get(selectedModel);
         selectedModel.set(model);
-        await runConnectedNodes(newEdge.id);
-        selectedModel.set(currentModel);
+        // Don't await this - let it run in the background
+        runConnectedNodes(newEdge.id).then(() => {
+          selectedModel.set(currentModel);
+        });
       }
     }
   }

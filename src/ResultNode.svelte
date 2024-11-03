@@ -362,16 +362,28 @@
     flex-direction: column;
     gap: 8px;
   }
-  .edit-textarea {
-    width: 100%;
-    min-height: 100px;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-family: inherit;
-    font-size: inherit;
-    resize: vertical;
-  }
+  /* Adding box-sizing and focusing on clear font rendering */
+.edit-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+
+  /* Ensure the textarea’s padding and borders don’t mess with its size */
+  box-sizing: border-box;
+  font-family: inherit;
+  font-size: inherit;
+
+  /* Prevent anti-aliasing and improve text clarity */
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
+
+  /* Clear text rendering */
+  text-rendering: optimizeLegibility;
+}
+
+
   .edit-buttons {
     display: flex;
     gap: 8px;
