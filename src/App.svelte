@@ -547,15 +547,22 @@ const clickThreshold = 200;
     return `${id}`;
   };
 
-  // Function to get the next new node label
-  const getNewNodeLabel = () => {
-    let number;
-    nextNewNodeNumber.update(n => {
-      number = n;
-      return n + 1;
-    });
-    return `New Node ${number}`;
-  };
+// Function to get the next new node label
+const getNewNodeLabel = () => {
+  // Find all existing "New Node X" labels and get their numbers
+  const existingNumbers = $nodes
+    .map(node => {
+      const match = node.data.label.match(/^New Node (\d+)$/);
+      return match ? parseInt(match[1]) : 0;
+    })
+    .filter(num => !isNaN(num));
+
+  // Get the highest number used
+  const highestNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
+  
+  // Return the next number in sequence
+  return `New Node ${highestNumber + 1}`;
+};
 
 
   const { screenToFlowPosition, fitView  } = useSvelteFlow();
