@@ -26,7 +26,7 @@
   import SaveLoadPanel from './SaveLoadPanel.svelte';
   import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
-  import { selectedModel, isNodeResizing } from './stores';
+  import { selectedModel, isNodeResizing, secondaryModels } from './stores';
   import { Zap, Square, Info } from 'lucide-svelte';
   
   import { onMount } from 'svelte';
@@ -518,52 +518,49 @@ let isCreatingNodeViaDrag = false;
 let lastClickTime = 0;
 const clickThreshold = 200;
 
-  // Create a derived store for the highest node ID
-  const highestNodeId = derived(nodes, $nodes => {
-    return $nodes.reduce((max, node) => {
-      const nodeId = parseInt(node.id);
-      return isNaN(nodeId) ? max : Math.max(max, nodeId);
-    }, 0);
+ // Create a derived store for the highest node ID
+const highestNodeId = derived(nodes, $nodes => {
+  return $nodes.reduce((max, node) => {
+    const nodeId = parseInt(node.id);
+    return isNaN(nodeId) ? max : Math.max(max, nodeId);
+  }, 0);
+});
+
+// Create a writable store for the next available ID
+const nextId = writable(1);
+
+// Subscribe to changes in highestNodeId and update nextId accordingly
+highestNodeId.subscribe(value => {
+  nextId.set(value + 1);
+});
+
+// Function to get the next ID
+const getId = () => {
+  let id;
+  nextId.update(n => {
+    id = n;
+    return n + 1;
   });
-
-  // Create a writable store for the next available ID
-  const nextId = writable(1);
-
-  // Create a writable store for the next new node number
-  const nextNewNodeNumber = writable(1);
-
-  // Subscribe to changes in highestNodeId and update nextId accordingly
-  highestNodeId.subscribe(value => {
-    nextId.set(value + 1);
-  });
-
-  // Function to get the next ID
-  const getId = () => {
-    let id;
-    nextId.update(n => {
-      id = n;
-      return n + 1;
-    });
-    return `${id}`;
-  };
+  return `${id}`;
+};
 
 // Function to get the next new node label
 const getNewNodeLabel = () => {
   // Find all existing "New Node X" labels and get their numbers
   const existingNumbers = $nodes
     .map(node => {
-      const match = node.data.label.match(/^New Node (\d+)$/);
+      // Updated regex to match labels with model names in parentheses
+      const match = node.data.label.match(/^New Node (\d+)(?:\s*\([^)]+\))?$/);
       return match ? parseInt(match[1]) : 0;
     })
     .filter(num => !isNaN(num));
 
   // Get the highest number used
   const highestNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
-  
+
   // Return the next number in sequence
   return `New Node ${highestNumber + 1}`;
 };
-
 
   const { screenToFlowPosition, fitView  } = useSvelteFlow();
 
@@ -633,34 +630,58 @@ const getNewNodeLabel = () => {
     nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
   } else {
     // Original behavior for non-result nodes
-    const newNode = {
-      id,
-      type: 'result',
-      data: { label: getNewNodeLabel(), text: '' },
-      position: screenToFlowPosition({
-        x: clientX,
-        y: clientY
-      }),
-      origin: [0.5, 0.0]
-    };
+    const models = [$selectedModel, ...$secondaryModels];
+    const basePosition = screenToFlowPosition({
+      x: clientX,
+      y: clientY
+    });
+    
+    // Store original primary model
+    const originalModel = $selectedModel;
+    
+    // Create and run nodes for each model
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      
+      // Temporarily set this model as primary
+      selectedModel.set(model);
+      
+      const id = getId();
+      const newNode = {
+        id,
+        type: 'result',
+        data: { 
+          label: `${getNewNodeLabel()} (${model.split('/').pop()})`,
+          text: ''
+        },
+        position: {
+          x: basePosition.x + (i * 250),
+          y: basePosition.y
+        },
+        origin: [0.5, 0.0]
+      };
 
-    nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
+      nodes.update(n => [...n, newNode]);
+
+      const newEdge = createEdge({
+        id: `e${sourceNodeId}-${id}`,
+        source: sourceNodeId,
+        target: id
+      });
+      edges.update(e => [...e, newEdge]);
+
+      // Run the node if source has text
+      if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
+        await runConnectedNodes(newEdge.id);
+      }
+    }
+    
+    // Restore original primary model
+    selectedModel.set(originalModel);
   }
-
-  const newEdge = createEdge({
-    id: `e${sourceNodeId}-${id}`,
-    source: sourceNodeId,
-    target: id
-  });
-  edges.update(e => [...e, newEdge]);
 
   isCreatingNodeViaDrag = false;
   lastClickTime = Date.now();
-
-  // Only auto-run for text node sources
-  if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-    await runConnectedNodes(newEdge.id);
-  }
 };
 
 function onPaneClick(event) {
