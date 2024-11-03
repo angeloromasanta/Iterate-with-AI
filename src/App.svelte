@@ -628,23 +628,24 @@ const getNewNodeLabel = () => {
     };
 
     nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
-  } else {
-    // Original behavior for non-result nodes
+    } else {
     const models = [$selectedModel, ...$secondaryModels];
     const basePosition = screenToFlowPosition({
       x: clientX,
       y: clientY
     });
     
-    // Store original primary model
-    const originalModel = $selectedModel;
+    // Get the DOM element and store its current value
+    const selectElement = document.querySelector('.primary-select') as HTMLSelectElement;
+    const displayValue = selectElement?.value;
     
     // Create and run nodes for each model
     for (let i = 0; i < models.length; i++) {
       const model = models[i];
       
-      // Temporarily set this model as primary
+      // Update store without affecting UI
       selectedModel.set(model);
+      if (selectElement) selectElement.value = displayValue;
       
       const id = getId();
       const newNode = {
@@ -676,13 +677,15 @@ const getNewNodeLabel = () => {
       }
     }
     
-    // Restore original primary model
-    selectedModel.set(originalModel);
+    // Restore original model in store
+    selectedModel.set(models[0]);
   }
 
   isCreatingNodeViaDrag = false;
   lastClickTime = Date.now();
 };
+
+
 
 function onPaneClick(event) {
     const currentIsResizing = get(isNodeResizing);
