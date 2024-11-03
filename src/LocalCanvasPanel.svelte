@@ -3,9 +3,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { defaultCanvases} from './defaultCanvases';
   import type { Node, Edge } from '@xyflow/svelte';
-  // Add these to your existing imports
-import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload } from 'lucide-svelte';
-
+  import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload } from 'lucide-svelte';
 
   export let nodes;
   export let edges;
@@ -14,32 +12,25 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
   
   let savedCanvases = [];
   let isPaneVisible = true;
+  let currentCanvasName = '';
+  let showToggle = false;
   
   function initializeDefaultCanvases() {
     const hasInitialized = localStorage.getItem('hasInitializedDefaults');
     
     if (!hasInitialized) {
-      // Save each default canvas
       Object.entries(defaultCanvases).forEach(([name, canvas]) => {
         localStorage.setItem(`canvas_${name}`, JSON.stringify(canvas));
       });
 
-      // Save the canvas list
       const defaultCanvasNames = Object.keys(defaultCanvases);
       localStorage.setItem('canvasList', JSON.stringify(defaultCanvasNames));
-      
-      // Mark as initialized
       localStorage.setItem('hasInitializedDefaults', 'true');
-      
-      // Load the first canvas immediately
       loadCanvas('Tutorial Canvas');
-      
-      // Update the saved canvases list
       savedCanvases = defaultCanvasNames;
     }
   }
 
-  // Modify the loadSavedCanvasList function
   function loadSavedCanvasList() {
     const canvasList = localStorage.getItem('canvasList');
     if (!canvasList) {
@@ -49,7 +40,6 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
     }
   }
 
-  // Call this when the component mounts
   onMount(() => {
     loadSavedCanvasList();
   });
@@ -61,7 +51,6 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
   }
 
   function validateNodeStructure(node) {
-    console.log('Validating node:', node);
     if (!node || typeof node !== 'object') {
       console.error('Invalid node object:', node);
       return false;
@@ -79,7 +68,6 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
   }
 
   function validateEdgeStructure(edge) {
-    console.log('Validating edge:', edge);
     if (!edge || typeof edge !== 'object') {
       console.error('Invalid edge object:', edge);
       return false;
@@ -96,38 +84,63 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
     return true;
   }
 
-  function saveCurrentCanvas() {
-    // Try to find a text node with content
-    const firstTextNode = $nodes.find(node => 
-      node.type === 'text' && 
-      node.data?.text?.trim()
-    );
+  function saveCanvas(name: string) {
+    if (!name) return;
     
-    // Create a default name using the text or a timestamp
-    const defaultName = firstTextNode 
-      ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
-      : `Canvas ${new Date().toLocaleString()}`;
-
-    // Save with the generated name
     const canvasData = {
       nodes: $nodes.filter(validateNodeStructure),
       edges: $edges.filter(validateEdgeStructure)
     };
 
     try {
-      localStorage.setItem(`canvas_${defaultName}`, JSON.stringify(canvasData));
-      savedCanvases = [...savedCanvases, defaultName];
-      localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
+      localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
     } catch (error) {
       console.error('Error saving canvas:', error);
       alert('Error saving canvas');
     }
   }
 
+  function saveCurrentCanvas() {
+  const firstTextNode = $nodes.find(node => 
+    node.type === 'text' && 
+    node.data?.text?.trim()
+  );
+  
+  let defaultName = firstTextNode 
+    ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
+    : `Canvas ${new Date().toLocaleString()}`;
+
+  // Ensure unique name by adding a number if name already exists
+  let uniqueName = defaultName;
+  let counter = 1;
+  while (savedCanvases.includes(uniqueName)) {
+    uniqueName = `${defaultName} (${counter})`;
+    counter++;
+  }
+
+  const canvasData = {
+    nodes: $nodes.filter(validateNodeStructure),
+    edges: $edges.filter(validateEdgeStructure)
+  };
+
+  try {
+    localStorage.setItem(`canvas_${uniqueName}`, JSON.stringify(canvasData));
+    savedCanvases = [...savedCanvases, uniqueName];
+    localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
+    currentCanvasName = uniqueName;
+  } catch (error) {
+    console.error('Error saving canvas:', error);
+    alert('Error saving canvas');
+  }
+}
+
+
   function loadCanvas(name: string) {
-    console.log('Loading canvas:', name);
+    if (currentCanvasName) {
+      saveCanvas(currentCanvasName);
+    }
+
     const canvasData = localStorage.getItem(`canvas_${name}`);
-    console.log('Raw canvas data:', canvasData);
 
     if (!canvasData) {
       console.error('No canvas data found for name:', name);
@@ -136,7 +149,6 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
 
     try {
       const parsedData = JSON.parse(canvasData);
-      console.log('Parsed canvas data:', parsedData);
 
       if (!parsedData || !parsedData.nodes || !parsedData.edges) {
         console.error('Invalid canvas data structure:', parsedData);
@@ -152,22 +164,22 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
         ? parsedData.edges.filter(validateEdgeStructure)
         : Object.values(parsedData.edges).filter(validateEdgeStructure);
 
-      console.log('Valid nodes:', validNodes);
-      console.log('Valid edges:', validEdges);
-
       if (validNodes.length === 0) {
         console.error('No valid nodes found in canvas data');
         alert('Error: No valid nodes found in canvas data');
         return;
       }
 
+      currentCanvasName = name;
       dispatch('load', {
         nodes: validNodes,
         edges: validEdges
       });
-    } catch (error) {
+      setTimeout(() => {
+    dispatch('fitview');
+  }, 50);
+} catch (error) {
       console.error('Error parsing canvas data:', error);
-      console.error('Canvas data that caused error:', canvasData);
       alert('Error loading canvas');
     }
   }
@@ -180,183 +192,237 @@ import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload 
       localStorage.removeItem(`canvas_${oldName}`);
       savedCanvases = savedCanvases.map(n => n === oldName ? newName : n);
       localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
+      if (currentCanvasName === oldName) {
+        currentCanvasName = newName;
+      }
     }
   }
 
   function deleteCanvas(name: string) {
     if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
 
-    console.log('Deleting canvas:', name);
     localStorage.removeItem(`canvas_${name}`);
     savedCanvases = savedCanvases.filter(n => n !== name);
     localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
+    if (currentCanvasName === name) {
+      currentCanvasName = '';
+    }
   }
 
   function createNewCanvas() {
+    if (currentCanvasName) {
+      saveCanvas(currentCanvasName);
+    }
+    currentCanvasName = '';
     dispatch('clear');
   }
   
   function exportCanvases() {
-  const exportData = {
-    canvasList: savedCanvases,
-    canvases: {}
-  };
-  
-  savedCanvases.forEach(name => {
-    const canvasData = localStorage.getItem(`canvas_${name}`);
-    if (canvasData) {
-      exportData.canvases[name] = JSON.parse(canvasData);
-    }
-  });
-
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `canvases-${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function importCanvases() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const importData = JSON.parse(text);
-      
-      if (!importData.canvasList || !importData.canvases) {
-        throw new Error('Invalid import file format');
+    const exportData = {
+      canvasList: savedCanvases,
+      canvases: {}
+    };
+    
+    savedCanvases.forEach(name => {
+      const canvasData = localStorage.getItem(`canvas_${name}`);
+      if (canvasData) {
+        exportData.canvases[name] = JSON.parse(canvasData);
       }
+    });
 
-      // Import each canvas
-      importData.canvasList.forEach(name => {
-        const canvasData = importData.canvases[name];
-        if (canvasData) {
-          localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `canvases-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importCanvases() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const importData = JSON.parse(text);
+        
+        if (!importData.canvasList || !importData.canvases) {
+          throw new Error('Invalid import file format');
         }
-      });
 
-      // Update canvas list
-      const newCanvasList = [...new Set([...savedCanvases, ...importData.canvasList])];
-      savedCanvases = newCanvasList;
-      localStorage.setItem('canvasList', JSON.stringify(newCanvasList));
+        importData.canvasList.forEach(name => {
+          const canvasData = importData.canvases[name];
+          if (canvasData) {
+            localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
+          }
+        });
 
-      alert('Canvases imported successfully!');
-    } catch (error) {
-      console.error('Import error:', error);
-      alert('Error importing canvases. Please check the file format.');
-    }
-  };
+        const newCanvasList = [...new Set([...savedCanvases, ...importData.canvasList])];
+        savedCanvases = newCanvasList;
+        localStorage.setItem('canvasList', JSON.stringify(newCanvasList));
 
-  input.click();
-}
+        alert('Canvases imported successfully!');
+      } catch (error) {
+        console.error('Import error:', error);
+        alert('Error importing canvases. Please check the file format.');
+      }
+    };
 
+    input.click();
+  }
 </script>
 
 <div class="panel" class:collapsed={!isPaneVisible}>
-  <button class="toggle-button" on:click={togglePane}>
-    {#if isPaneVisible}
-      <ChevronLeft size={20} />
-    {:else}
-      <ChevronRight size={20} />
-    {/if}
-  </button>
+  <div 
+  class="panel-edge"
+  on:mouseenter={() => showToggle = true}
+  on:mouseleave={() => showToggle = false}
+  on:click={togglePane}
+>
+  {#if showToggle}
+    <div class="toggle-indicator">
+      {#if isPaneVisible}
+        <ChevronLeft size={16} />
+      {:else}
+        <ChevronRight size={16} />
+      {/if}
+    </div>
+  {/if}
+</div>
   
   {#if isPaneVisible}
-  <div class="main-title">Iterate with AI</div>
-  
-  <button class="save-button" on:click={saveCurrentCanvas}>
-    <Save size={18} />
-    Save current canvas
-  </button>
+    <div class="main-title">Iterate with AI</div>
+    
+    <div class="save-buttons">
+      <button class="save-button" on:click={() => saveCanvas(currentCanvasName)} disabled={!currentCanvasName}>
+        <Save size={18} />
+        Save
+      </button>
+      <button class="save-as-button" on:click={saveCurrentCanvas}>
+        <Save size={18} />
+        Save As
+      </button>
+    </div>
 
-  <div class="canvas-list">
-    {#if savedCanvases.length === 0}
-      <div class="empty-state">No saved canvases</div>
-    {:else}
-      {#each savedCanvases as name}
-        <div class="canvas-item">
-          <span class="canvas-name" on:click={() => loadCanvas(name)}>
-            {name}
-          </span>
-          <div class="canvas-actions">
-            <button class="action-btn" on:click={() => renameCanvas(name)}>
-              <Edit2 size={14} />
-            </button>
-            <button class="delete-btn" on:click={() => deleteCanvas(name)}>
-              <Trash2 size={14} />
-            </button>
+    <div class="canvas-list">
+      {#if savedCanvases.length === 0}
+        <div class="empty-state">No saved canvases</div>
+      {:else}
+        {#each savedCanvases as name}
+          <div class="canvas-item" class:selected={name === currentCanvasName}>
+            <span class="canvas-name" on:click={() => loadCanvas(name)}>
+              {name}
+            </span>
+            <div class="canvas-actions">
+              <button class="action-btn" on:click={() => renameCanvas(name)}>
+                <Edit2 size={14} />
+              </button>
+              <button class="delete-btn" on:click={() => deleteCanvas(name)}>
+                <Trash2 size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-      {/each}
-      
-    {/if}
+        {/each}
+      {/if}
 
-    <button class="add-button" on:click={createNewCanvas}>
-      <Plus size={18} />
-      Add new canvas
-    </button>
-  </div>
-  <div class="import-export-buttons">
-    <button class="import-button" on:click={importCanvases}>
-      <Upload size={18} />
-      Import Canvases
-    </button>
-    <button class="export-button" on:click={exportCanvases}>
-      <Download size={18} />
-      Export Canvases
-    </button>
-  </div>
-  
-{/if}
+      <button class="add-button" on:click={createNewCanvas}>
+        <Plus size={18} />
+        Add new canvas
+      </button>
+    </div>
+    <div class="import-export-buttons">
+      <button class="import-button" on:click={importCanvases}>
+        <Upload size={18} />
+        Import
+      </button>
+      <button class="export-button" on:click={exportCanvases}>
+        <Download size={18} />
+        Export
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
-  .panel {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 250px;
-  background: #f8faff;
-  border-right: 1px solid #ccc;
-  display: flex;
-  flex-direction: column;
-  z-index: 5;
-  transition: width 0.3s ease;
-  font-size: 12px;
-}
-
-.panel.collapsed {
-  width: auto;
-}
-
-  .toggle-button {
+   .panel {
     position: absolute;
-    right: -24px;
-    top: 20px;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 250px;
     background: #f8faff;
-    border: 1px solid #ccc;
-    border-left: none;
-    border-radius: 0 4px 4px 0;
-    padding: 4px;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    z-index: 5;
+    transition: width 0.3s ease;
+    font-size: 12px;
+  }
+
+  .panel.collapsed {
+    width: auto;
+  }
+
+  .panel-edge {
+    position: absolute;
+    right: -6px; /* Made thicker */
+    top: 0;
+    bottom: 0;
+    width: 6px; /* Made thicker */
     cursor: pointer;
-    z-index: 4;
+    background: transparent;
+    transition: all 0.2s ease;
+  }
+
+  .panel-edge:hover {
+    background: rgba(0, 0, 0, 0.25); /* Darker hover state */
+  }
+
+  .toggle-indicator {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 24px;
-    width: 24px;
+    pointer-events: none;
+  }
+
+  /* Update toggle indicator color on hover */
+  .panel-edge:hover .toggle-indicator {
+    color: #fff; /* Make the chevron white on hover */
+  }
+
+
+ 
+
+  .toggle-button {
+    position: absolute;
+    right: -18px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #f8faff;
+    border: 1px solid #ccc;
+    border-left: none;
+    border-radius: 0 2px 2px 0;
+    padding: 2px;
+    cursor: pointer;
+    height: 40px;
+    width: 18px;
     color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .toggle-button:hover {
@@ -364,165 +430,170 @@ function importCanvases() {
     color: #333;
   }
 
-.main-title {
-  padding: 15px;
-  font-size: 24px;
-  font-weight: bold;
-  border-bottom: 1px solid #eee;
-}
+  .main-title {
+    padding: 15px;
+    font-size: 24px;
+    font-weight: bold;
+    border-bottom: 1px solid #eee;
+  }
 
-.save-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 8px;
-  padding: 8px;
-  background: #e6f3ff;
-  border: 1px solid #add6ff;
-  border-radius: 4px;
-  color: #0066cc;
-  cursor: pointer;
-  font-size: 12px;
-  width: calc(100% - 16px);
-  transition: background-color 0.2s;
-}
+  .save-buttons {
+    display: flex;
+    gap: 4px;
+    margin: 8px;
+  }
 
-.save-button:hover {
-  background: #d1e8ff;
-}
+  .save-button, .save-as-button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    background: #e6f3ff;
+    border: 1px solid #add6ff;
+    border-radius: 4px;
+    color: #0066cc;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+  }
 
-.add-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 8px;
-  padding: 8px;
-  background: #e6ffe6;
-  border: 1px solid #b3ffb3;
-  border-radius: 4px;
-  color: #008000;
-  cursor: pointer;
-  font-size: 12px;
-  width: calc(100% - 16px);
-  transition: background-color 0.2s;
-}
+  .save-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-.add-button:hover {
-  background: #d1ffd1;
-}
+  .save-button:hover:not(:disabled), .save-as-button:hover {
+    background: #d1e8ff;
+  }
 
-.canvas-list {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-}
+  .add-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px;
+    padding: 8px;
+    background: #e6ffe6;
+    border: 1px solid #b3ffb3;
+    border-radius: 4px;
+    color: #008000;
+    cursor: pointer;
+    font-size: 12px;
+    width: calc(100% - 16px);
+    transition: background-color 0.2s;
+  }
 
-.canvas-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 8px;
-  border: 1px solid #eee;
-  margin-bottom: 4px;
-  border-radius: 4px;
-  font-size: 12px;
-  background: white;
-}
+  .add-button:hover {
+    background: #d1ffd1;
+  }
 
-.canvas-item:hover {
-  background: #f5f5f5;
-}
+  .canvas-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+  }
 
-.canvas-name {
-  cursor: pointer;
-  flex-grow: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #333;
-}
+  .canvas-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border: 1px solid #eee;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    font-size: 12px;
+    background: white;
+  }
 
-.canvas-name:hover {
-  text-decoration: underline;
-}
+  .canvas-item.selected {
+    background: #e6f3ff;
+    border: 1px solid #add6ff;
+  }
 
-.canvas-actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0.6;
-}
+  .canvas-item:hover {
+    background: #f5f5f5;
+  }
 
-.canvas-item:hover .canvas-actions {
-  opacity: 1;
-}
+  .canvas-name {
+    cursor: pointer;
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #333;
+  }
 
-.action-btn, .delete-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-}
+  .canvas-name:hover {
+    text-decoration: underline;
+  }
 
-.action-btn:hover {
-  color: #4CAF50;
-}
+  .canvas-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0.6;
+  }
 
-.delete-btn:hover {
-  color: #ff4136;
-}
+  .canvas-item:hover .canvas-actions {
+    opacity: 1;
+  }
 
-.empty-state {
-  color: #666;
-  text-align: center;
-  padding: 16px;
-  font-style: italic;
-  font-size: 12px;
-}
-.import-export-buttons {
-  padding: 8px;
-  display: flex;
-  gap: 8px;
-  border-top: 1px solid #eee;
-}
+  .action-btn, .delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+  }
 
-.import-button, .export-button {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background-color 0.2s;
-}
+  .action-btn:hover {
+    color: #4CAF50;
+  }
 
-.import-button {
-  background: #f5f5f5;  /* Grey background */
-  border: 1px solid #e0e0e0;  /* Light grey border */
-  color: #666;  /* Grey text */
-}
+  .delete-btn:hover {
+    color: #ff4136;
+  }
 
-.import-button:hover {
-  background: #ffe6d1;
-}
+  .empty-state {
+    color: #666;
+    text-align: center;
+    padding: 16px;
+    font-style: italic;
+    font-size: 12px;
+  }
 
-.export-button {
-  background: #f5f5f5;  /* Grey background */
-  border: 1px solid #e0e0e0;  /* Light grey border */
-  color: #666;  /* Grey text */
-}
+  .import-export-buttons {
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid #eee;
+  }
 
-.export-button:hover {
-  background: #d1ffe6;
-}
+  .import-button, .export-button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    color: #666;
+  }
 
+  .import-button:hover {
+    background: #ffe6d1;
+  }
 
+  .export-button:hover {
+    background: #d1ffe6;
+  }
 </style>

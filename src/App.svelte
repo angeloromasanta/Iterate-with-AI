@@ -1252,12 +1252,16 @@ function onPaneClick(event) {
   <div class="model-selector-container">
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
-  <LocalCanvasPanel 
+  
+<LocalCanvasPanel 
   nodes={nodes} 
   edges={edges} 
   on:load={handleImport}
   on:clear={handleClear}
+  on:fitview={() => fitView({ padding: 0.2 })}
 />
+
+
 
   <SvelteFlow
     {nodes}
