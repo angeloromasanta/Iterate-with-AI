@@ -7,6 +7,7 @@ const OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 export async function getLLMResponse(
   input: string,
   onChunk: (chunk: string) => void,
+  shouldStop: () => boolean
 ): Promise<string> {
   const model = get(selectedModel);
   const apiKey = get(userApiKey);
@@ -51,6 +52,12 @@ export async function getLLMResponse(
     let fullResponse = "";
 
     while (true) {
+      // Check if we should stop before processing next chunk
+      if (shouldStop()) {
+        reader?.cancel(); // Cancel the reader to stop the stream
+        return fullResponse; // Return whatever we have so far
+      }
+
       const { done, value } = (await reader?.read()) ?? {
         done: true,
         value: undefined,
@@ -59,9 +66,12 @@ export async function getLLMResponse(
       const chunk = decoder.decode(value, { stream: true });
 
       if (apiKey) {
-        // Direct OpenRouter response handling (unchanged)
+        // Direct OpenRouter response handling
         const lines = chunk.split("\n").filter((line) => line.trim() !== "");
         for (const line of lines) {
+          if (shouldStop()) { // Check again in case of long-running parse
+            return fullResponse;
+          }
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
             if (data === "[DONE]") continue;
@@ -78,7 +88,7 @@ export async function getLLMResponse(
           }
         }
       } else {
-        // Server-side response handling (simplified)
+        // Server-side response handling
         onChunk(chunk);
         fullResponse += chunk;
       }

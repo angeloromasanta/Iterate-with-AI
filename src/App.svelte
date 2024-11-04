@@ -26,17 +26,10 @@
   import LocalCanvasPanel from './LocalCanvasPanel.svelte';
   import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
-  import { selectedModel, isNodeResizing, secondaryModels } from './stores';
+  import { selectedModel, isNodeResizing, secondaryModels, isProcessing, shouldStop, startProcessing, stopProcessing, resetProcessing, activeProcesses } from './stores';
   import { Zap, Square, Info } from 'lucide-svelte';
   
   import { onMount } from 'svelte';
-  import { fade } from 'svelte/transition';
-
-  let showInstructions = false;
-
-  function toggleInstructions() {
-    showInstructions = !showInstructions;
-  }
 
   function saveStateToLocalStorage() {
     const state = {
@@ -411,7 +404,7 @@ let edges = writable<Edge[]>([
     nodes.set(updatedNodes);
   }
   
- async function runConnectedNodes(edgeId) {
+  async function runConnectedNodes(edgeId) {
     const edge = $edges.find(e => e.id === edgeId);
     if (!edge) return;
 
@@ -419,7 +412,8 @@ let edges = writable<Edge[]>([
     const targetNode = $nodes.find(n => n.id === edge.target);
 
     if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
-      processing = true;
+      startProcessing();
+      activeProcesses.update(n => n + 1);
 
       // Process the source node
       let processedText = sourceNode.data.text;
@@ -427,7 +421,7 @@ let edges = writable<Edge[]>([
 
       // Replace references with actual values and collect referenced nodes
       const regex = /{([^}]+)}/g;
-      processedText = processedText.replace(regex, (match, label) => { //Property 'replace' does not exist on type 'unknown'.
+      processedText = processedText.replace(regex, (match, label) => {
         const referencedNode = $nodes.find(n => n.data.label === label);
         if (referencedNode) {
           referencedNodes.push(referencedNode);
@@ -463,57 +457,73 @@ let edges = writable<Edge[]>([
       await new Promise(resolve => setTimeout(resolve, 100));
 
       let fullResponse = '';
-  const response = await getLLMResponse(processedText, (chunk) => { //Argument of type 'unknown' is not assignable to parameter of type 'string'.
-    fullResponse += chunk;
-    // Update the target node with the partial response
-    nodes.update(n => n.map(node => {
-      if (node.id === targetNode.id) {
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            streamingResult: fullResponse,
-            results: [...(node.data.results || [])] //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
-          }
-        };
-      }
-      return node;
-    }));
-  });
+      try {
+        const response = await getLLMResponse(
+          processedText, 
+          (chunk) => {
+            fullResponse += chunk;
+            // Update the target node with the partial response
+            nodes.update(n => n.map(node => {
+              if (node.id === targetNode.id) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    streamingResult: fullResponse,
+                    results: [...(node.data.results || [])]
+                  }
+                };
+              }
+              return node;
+            }));
+          },
+          () => get(shouldStop)  // Pass the stop check function
+        );
 
-  // Final update with the complete response
-  nodes.update(n => n.map(node => {
-    if (node.id === targetNode.id) {
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          streamingResult: null,
-          results: [...(node.data.results || []), response] //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
+        // Only update with final result if we haven't stopped
+        if (!get(shouldStop)) {
+          nodes.update(n => n.map(node => {
+            if (node.id === targetNode.id) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  streamingResult: null,
+                  results: [...(node.data.results || []), response]
+                }
+              };
+            }
+            return node;
+          }));
         }
-      };
+      } finally {
+        // Reset processing classes and animations
+        nodes.update(n => n.map(node => ({
+          ...node,
+          class: (node.class || '').replace('processing', '').trim()
+        })));
+
+        edges.update(e => e.map(edge => ({
+          ...edge,
+          animated: false,
+          class: (edge.class || '').replace('processing-edge', '').trim()
+        })));
+
+        // Decrement active processes and only reset if we're the last one
+        activeProcesses.update(n => {
+          const newCount = Math.max(0, n - 1);  // Ensure we don't go below 0
+          if (newCount === 0) {
+            resetProcessing();
+          }
+          return newCount;
+        });
+      }
     }
-    return node;
-  }));
-
-      // Reset processing classes and animations
-      nodes.update(n => n.map(node => ({
-        ...node,
-        class: (node.class || '').replace('processing', '').trim()
-      })));
-
-      edges.update(e => e.map(edge => ({
-        ...edge,
-        animated: false,
-        class: (edge.class || '').replace('processing-edge', '').trim()
-      })));
-
-      processing = false;
-    }
-  }
+}
 
 
-  let processing = false;
+
+
 let isCreatingNodeViaDrag = false;
 let lastClickTime = 0;
 const clickThreshold = 200;
@@ -568,6 +578,9 @@ const getNewNodeLabel = () => {
     isCreatingNodeViaDrag = true;
   };
 
+  let lastConnectEndTime = 0;
+const connectEndThreshold = 300; 
+
   const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     // Get the current resize state
     const currentIsResizing = get(isNodeResizing);
@@ -583,103 +596,109 @@ const getNewNodeLabel = () => {
         return;
     }
 
-  const sourceNodeId = connectionState.fromNode?.id ?? '1';
-  const sourceNode = $nodes.find(node => node.id === sourceNodeId);
-  const id = getId();
-  const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
+    const sourceNodeId = connectionState.fromNode?.id ?? '1';
+    const sourceNode = $nodes.find(node => node.id === sourceNodeId);
+    const id = getId();
+    const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
   
-  // Function to recursively get all ancestor nodes
-  const getAncestorNodes = (nodeId: string, visited = new Set<string>()): Node[] => {
-    if (visited.has(nodeId)) return [];
-    visited.add(nodeId);
-    
-    const incomingEdges = $edges.filter(edge => edge.target === nodeId);
-    const ancestors = incomingEdges.flatMap(edge => {
-      const sourceNode = $nodes.find(n => n.id === edge.source);
-      if (!sourceNode) return [];
-      return [sourceNode, ...getAncestorNodes(sourceNode.id, visited)];
-    });
-    
-    return ancestors;
-  };
-
-  if (sourceNode?.type === 'result') {
-    // Get all ancestor nodes including immediate parents
-    const ancestors = getAncestorNodes(sourceNode.id);
-    
-    // Create references in order of appearance in the flow
-    const referenceText = [
-      ...ancestors.map(node => `{${node.data.label}}`),
-      `{${sourceNode.data.label}}`
-    ].join(' ');
-
-    const newNode = {
-      id,
-      type: 'text',
-      data: { 
-        label: getNewNodeLabel(), 
-        text: referenceText 
-      },
-      position: screenToFlowPosition({
-        x: clientX,
-        y: clientY
-      }),
-      origin: [0.5, 0.0]
+    // Function to recursively get all ancestor nodes
+    const getAncestorNodes = (nodeId: string, visited = new Set<string>()): Node[] => {
+        if (visited.has(nodeId)) return [];
+        visited.add(nodeId);
+        
+        const incomingEdges = $edges.filter(edge => edge.target === nodeId);
+        const ancestors = incomingEdges.flatMap(edge => {
+            const sourceNode = $nodes.find(n => n.id === edge.source);
+            if (!sourceNode) return [];
+            return [sourceNode, ...getAncestorNodes(sourceNode.id, visited)];
+        });
+        
+        return ancestors;
     };
 
-    nodes.update(n => [...n, newNode]);//Type 'Node | { id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'. Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'Node'.     Type '{ id: string; type: string; data: { label: string; text: string; }; position: XYPosition; origin: number[]; }' is not assignable to type 'NodeBase<Record<string, unknown>, string>'. Types of property 'origin' are incompatible. Type 'number[]' is not assignable to type 'NodeOrigin'. Target requires 2 element(s) but source may have fewer.
-    } else {
-    // Store the models we want to use at the start
-    const modelsToProcess = [$selectedModel, ...$secondaryModels];
-    const basePosition = screenToFlowPosition({
-      x: clientX,
-      y: clientY
-    });
-    
-    // Create all nodes and start their processing immediately
-    for (let i = 0; i < modelsToProcess.length; i++) {
-      const model = modelsToProcess[i];
-      const id = getId();
-      
-      const newNode = {
-        id,
-        type: 'result',
-        data: { 
-          label: `${getNewNodeLabel()} (${model.split('/').pop()})`,
-          text: ''
-        },
-        position: {
-          x: basePosition.x + (i * 250),
-          y: basePosition.y
-        },
-        origin: [0.5, 0.0]
-      };
+    if (sourceNode?.type === 'result') {
+        // Get all ancestor nodes including immediate parents
+        const ancestors = getAncestorNodes(sourceNode.id);
+        
+        // Create references in order of appearance in the flow
+        const referenceText = [
+            ...ancestors.map(node => `{${node.data.label}}`),
+            `{${sourceNode.data.label}}`
+        ].join(' ');
 
-      const newEdge = createEdge({
-        id: `e${sourceNodeId}-${id}`,
-        source: sourceNodeId,
-        target: id
-      });
+        const newNode = {
+            id,
+            type: 'text',
+            data: { 
+                label: getNewNodeLabel(), 
+                text: referenceText 
+            },
+            position: screenToFlowPosition({
+                x: clientX,
+                y: clientY
+            }),
+            origin: [0.5, 0.0]
+        };
 
-      // Add small delay between node creation
-      await new Promise(resolve => setTimeout(resolve, 50));
-      nodes.update(n => [...n, newNode]);
-      edges.update(e => [...e, newEdge]);
-
-      // Start processing without awaiting
-      if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-        const currentModel = get(selectedModel);
-        selectedModel.set(model);
-        // Don't await this - let it run in the background
-        runConnectedNodes(newEdge.id).then(() => {
-          selectedModel.set(currentModel);
+        // Create the edge first
+        const newEdge = createEdge({
+            id: `e${sourceNodeId}-${id}`,
+            source: sourceNodeId,
+            target: id
         });
-      }
-    }
-  }
 
-  isCreatingNodeViaDrag = false;
-  lastClickTime = Date.now();
+        // Update both nodes and edges
+        nodes.update(n => [...n, newNode]);
+        edges.update(e => [...e, newEdge]);
+    } else {
+        // Rest of the existing code for other node types...
+        const modelsToProcess = [$selectedModel, ...$secondaryModels];
+        const basePosition = screenToFlowPosition({
+            x: clientX,
+            y: clientY
+        });
+        
+        for (let i = 0; i < modelsToProcess.length; i++) {
+            const model = modelsToProcess[i];
+            const id = getId();
+            
+            const newNode = {
+                id,
+                type: 'result',
+                data: { 
+                    label: `${getNewNodeLabel()} (${model.split('/').pop()})`,
+                    text: ''
+                },
+                position: {
+                    x: basePosition.x + (i * 250),
+                    y: basePosition.y
+                },
+                origin: [0.5, 0.0]
+            };
+
+            const newEdge = createEdge({
+                id: `e${sourceNodeId}-${id}`,
+                source: sourceNodeId,
+                target: id
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            nodes.update(n => [...n, newNode]);
+            edges.update(e => [...e, newEdge]);
+
+            if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
+                const currentModel = get(selectedModel);
+                selectedModel.set(model);
+                runConnectedNodes(newEdge.id).then(() => {
+                    selectedModel.set(currentModel);
+                });
+            }
+        }
+    }
+
+    isCreatingNodeViaDrag = false;
+    lastClickTime = Date.now();
+    lastConnectEndTime = Date.now(); // Track when we finish the connect end operation
 };
 
 
@@ -688,31 +707,40 @@ function onPaneClick(event) {
     const currentIsResizing = get(isNodeResizing);
     const currentTime = Date.now();
     const timeSinceResize = currentTime - lastResizeEndTime;
+    const timeSinceConnectEnd = currentTime - lastConnectEndTime;
     
     console.log('Pane Click Debug:', {
         isResizing: currentIsResizing,
         isCreatingNodeViaDrag,
         timeSinceLastClick: currentTime - lastClickTime,
         timeSinceResize,
+        timeSinceConnectEnd,
         event: event.detail
     });
 
-    // Block node creation for 300ms after resize ends
-    if (timeSinceResize < 300) {
-        console.log('Prevented node creation: Too soon after resize');
-        event.preventDefault();
-        event.stopPropagation();
-        return false;
-    }
-
-    // Don't create node if we're resizing or in drag mode
-    if (currentIsResizing || isCreatingNodeViaDrag || (currentTime - lastClickTime < clickThreshold)) {
+    // Block node creation if:
+    // 1. Too soon after resize
+    // 2. Too soon after connect end
+    // 3. Currently resizing
+    // 4. Creating node via drag
+    // 5. Click too soon after last click
+    if (
+        timeSinceResize < 300 ||
+        timeSinceConnectEnd < connectEndThreshold ||
+        currentIsResizing ||
+        isCreatingNodeViaDrag ||
+        (currentTime - lastClickTime < clickThreshold)
+    ) {
         console.log('Prevented node creation:', {
-            reason: currentIsResizing ? 'Currently resizing' : 
+            reason: timeSinceResize < 300 ? 'Too soon after resize' :
+                   timeSinceConnectEnd < connectEndThreshold ? 'Too soon after connect end' :
+                   currentIsResizing ? 'Currently resizing' : 
                    isCreatingNodeViaDrag ? 'Drag in progress' : 
                    'Click too soon'
         });
-        return;
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
     }
 
     const { clientX, clientY } = event.detail.event;
@@ -814,18 +842,17 @@ function onPaneClick(event) {
     return loopCounts;
   }
 
-  let isRunning = false;
-  let shouldStop = false;
 
   async function onBigButtonClick() {
-  if (isRunning) {
-    shouldStop = true;
+  // If we're already processing, stop everything
+  if (get(isProcessing)) {
+    stopProcessing();
     return;
   }
 
-  isRunning = true;
-  shouldStop = false;
-  processing = true;
+  // Start fresh processing cycle
+  startProcessing();
+  activeProcesses.set(0); // Reset counter before starting
 
   try {
     let allNodes = $nodes;
@@ -836,35 +863,52 @@ function onPaneClick(event) {
     const dependencies = findDependencies(graph, cycles);
     const loopCounts = getLoopCounts(allEdges, cycles);
 
-
     const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
 
-
+    // Process nodes sequentially
     for (const nodeId of executionOrder) {
-      if (shouldStop) {
+      // Check if stop was requested
+      if (get(shouldStop)) {
+        console.log('Stop requested, breaking execution');
         break;
       }
 
       const node = $nodes.find(n => n.id === nodeId);
-      if (node.type === 'text') {
+      if (node?.type === 'text') {
         const connectedResultNodes = $edges
           .filter(edge => edge.source === node.id)
           .map(edge => $nodes.find(n => n.id === edge.target))
           .filter(n => n && n.type === 'result');
 
+        // Process result nodes sequentially instead of in parallel
         for (const resultNode of connectedResultNodes) {
+          if (get(shouldStop)) {
+            console.log('Stop requested during result node processing');
+            break;
+          }
+          
           const edgeId = $edges.find(e => e.source === node.id && e.target === resultNode.id)?.id;
           if (edgeId) {
+            activeProcesses.update(n => n + 1);
             await runConnectedNodes(edgeId);
           }
         }
       }
+      
+      // Check again after processing each node
+      if (get(shouldStop)) {
+        break;
+      }
     }
-  } catch (error) {
   } finally {
-    isRunning = false;
-    shouldStop = false;
-    processing = false;
+    // Ensure we clean up properly
+    if (get(shouldStop)) {
+      console.log('Cleaning up after stop');
+      stopProcessing();
+    } else {
+      resetProcessing();
+    }
+    activeProcesses.set(0);
   }
 }
 
@@ -1249,7 +1293,7 @@ function onPaneClick(event) {
 
 <main>
 
-  <div class="model-selector-container">
+  <div class="model-selector-container" class:hidden={$isProcessing}>
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
   
@@ -1280,14 +1324,19 @@ function onPaneClick(event) {
     <Background variant={BackgroundVariant.Dots} />
 
     <div class="custom-controls">
-      <button class="custom-button" on:click={onBigButtonClick} class:processing={isRunning}>
-        {#if isRunning}
+      <button 
+        class="custom-button" 
+        on:click={onBigButtonClick} 
+        class:processing={$isProcessing}
+      >
+        {#if $isProcessing}
           <Square size={24} />
         {:else}
           <Zap size={24} />
         {/if}
       </button>
     </div>
+
   </SvelteFlow>
 </main>
   
@@ -1443,5 +1492,7 @@ function onPaneClick(event) {
     font-style: italic;
   }
 
-   
+  .hidden {
+  display: none;
+}
 </style>
