@@ -581,7 +581,7 @@ const getNewNodeLabel = () => {
   let lastConnectEndTime = 0;
 const connectEndThreshold = 300; 
 
-  const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
+const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     // Get the current resize state
     const currentIsResizing = get(isNodeResizing);
     
@@ -651,13 +651,15 @@ const connectEndThreshold = 300;
         nodes.update(n => [...n, newNode]);
         edges.update(e => [...e, newEdge]);
     } else {
-        // Rest of the existing code for other node types...
+        const originalModel = get(selectedModel);  // Store original model
         const modelsToProcess = [$selectedModel, ...$secondaryModels];
         const basePosition = screenToFlowPosition({
             x: clientX,
             y: clientY
         });
         
+        const promises = [];  // Collect all promises
+
         for (let i = 0; i < modelsToProcess.length; i++) {
             const model = modelsToProcess[i];
             const id = getId();
@@ -689,18 +691,26 @@ const connectEndThreshold = 300;
             if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
                 const currentModel = get(selectedModel);
                 selectedModel.set(model);
-                runConnectedNodes(newEdge.id).then(() => {
-                    selectedModel.set(currentModel);
-                });
+                promises.push(
+                    runConnectedNodes(newEdge.id).finally(() => {
+                        if (i === modelsToProcess.length - 1) {
+                            selectedModel.set(originalModel);  // Restore original model after all complete
+                        }
+                    })
+                );
             }
+        }
+
+        // If no promises were created, restore model immediately
+        if (promises.length === 0) {
+            selectedModel.set(originalModel);
         }
     }
 
     isCreatingNodeViaDrag = false;
     lastClickTime = Date.now();
-    lastConnectEndTime = Date.now(); // Track when we finish the connect end operation
+    lastConnectEndTime = Date.now();
 };
-
 
 
 function onPaneClick(event) {
