@@ -1321,20 +1321,17 @@ function onPaneClick(event) {
 
 
 <main>
-
   <div class="model-selector-container" class:hidden={$isProcessing}>
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
-  
-<LocalCanvasPanel 
-  nodes={nodes} 
-  edges={edges} 
-  on:load={handleImport}
-  on:clear={handleClear}
-  on:fitview={() => fitView({ padding: 0.2 })}
-/>
 
-
+  <LocalCanvasPanel 
+    nodes={nodes} 
+    edges={edges} 
+    on:load={handleImport}
+    on:clear={handleClear}
+    on:fitview={() => fitView({ padding: 0.2 })}
+  />
 
   <SvelteFlow
     {nodes}
@@ -1365,55 +1362,80 @@ function onPaneClick(event) {
         {/if}
       </button>
     </div>
-
   </SvelteFlow>
 </main>
+
   
 
 
 
 <style>
- :global(body) {
+   :global(body) {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
     font-family: Arial, sans-serif;
+    /* Prevent overscroll on mobile */
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
   }
 
   :global(*) {
     box-sizing: inherit;
   }
 
-  
   main {
     height: 100vh;
     width: 100vw;
     position: relative;
-    overflow: hidden; /* Add this line */
+    /* Use flex to ensure proper sizing */
+    display: flex;
+    flex-direction: column;
+    /* Prevent content from overflowing */
+    overflow: hidden;
+  }
+
+  /* Ensure SvelteFlow takes up remaining space */
+  :global(.svelte-flow) {
+    flex: 1;
+    touch-action: none; /* Prevent default touch behaviors */
   }
 
 
-  .custom-controls {
-    position: absolute;
-    right: 70px; /* Moved further right to make space for controls */
+
+
+   .custom-controls {
+    position: fixed; /* Changed from absolute to fixed */
+    right: 70px;
     bottom: 20px;
     z-index: 10;
   }
-  .custom-button {
-    background-color: #4a5568; /* Changed from #ffd500 to match play button */
+
+  .model-selector-container {
+    position: fixed; /* Changed from absolute to fixed */
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+  }
+
+   .custom-button {
+    background-color: #4a5568;
     border: none;
     border-radius: 50%;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
-    width: 60px;
-    height: 60px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    width: 50px; /* Slightly smaller for mobile */
+    height: 50px; /* Slightly smaller for mobile */
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
     cursor: pointer;
     outline: none;
-    color: white; /* Changed from #333 to white for better contrast */
+    color: white;
   }
+
 
   .custom-button:hover {
     background-color: #64748b; /* Changed to lighter grey on hover */
@@ -1470,13 +1492,6 @@ function onPaneClick(event) {
   }
 
 
-  .model-selector-container {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 1; /* Lower z-index than the modal */
-  }
-
   .title {
     position: absolute;
     top: 10px;
@@ -1524,4 +1539,20 @@ function onPaneClick(event) {
   .hidden {
   display: none;
 }
+ @media screen and (max-width: 768px) {
+    .custom-controls {
+      right: 20px; /* Adjusted for mobile */
+      bottom: 70px; /* Move up to avoid overlap with Controls component */
+    }
+
+    .custom-button {
+      width: 45px; /* Even smaller on mobile */
+      height: 45px;
+    }
+
+    .model-selector-container {
+      top: 5px;
+      right: 5px;
+    }
+  }
 </style>
