@@ -102,39 +102,37 @@
   }
 
   function saveCurrentCanvas() {
-  const firstTextNode = $nodes.find(node => 
-    node.type === 'text' && 
-    node.data?.text?.trim()
-  );
-  
-  let defaultName = firstTextNode 
-    ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
-    : `Canvas ${new Date().toLocaleString()}`;
+    const firstTextNode = $nodes.find(node => 
+      node.type === 'text' && 
+      node.data?.text?.trim()
+    );
+    
+    let defaultName = firstTextNode 
+      ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
+      : `Canvas ${new Date().toLocaleString()}`;
 
-  // Ensure unique name by adding a number if name already exists
-  let uniqueName = defaultName;
-  let counter = 1;
-  while (savedCanvases.includes(uniqueName)) {
-    uniqueName = `${defaultName} (${counter})`;
-    counter++;
+    let uniqueName = defaultName;
+    let counter = 1;
+    while (savedCanvases.includes(uniqueName)) {
+      uniqueName = `${defaultName} (${counter})`;
+      counter++;
+    }
+
+    const canvasData = {
+      nodes: $nodes.filter(validateNodeStructure),
+      edges: $edges.filter(validateEdgeStructure)
+    };
+
+    try {
+      localStorage.setItem(`canvas_${uniqueName}`, JSON.stringify(canvasData));
+      savedCanvases = [...savedCanvases, uniqueName];
+      localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
+      currentCanvasName = uniqueName;
+    } catch (error) {
+      console.error('Error saving canvas:', error);
+      alert('Error saving canvas');
+    }
   }
-
-  const canvasData = {
-    nodes: $nodes.filter(validateNodeStructure),
-    edges: $edges.filter(validateEdgeStructure)
-  };
-
-  try {
-    localStorage.setItem(`canvas_${uniqueName}`, JSON.stringify(canvasData));
-    savedCanvases = [...savedCanvases, uniqueName];
-    localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
-    currentCanvasName = uniqueName;
-  } catch (error) {
-    console.error('Error saving canvas:', error);
-    alert('Error saving canvas');
-  }
-}
-
 
   function loadCanvas(name: string) {
     if (currentCanvasName) {
@@ -177,9 +175,9 @@
         edges: validEdges
       });
       setTimeout(() => {
-    dispatch('fitview');
-  }, 50);
-} catch (error) {
+        dispatch('fitview');
+      }, 50);
+    } catch (error) {
       console.error('Error parsing canvas data:', error);
       alert('Error loading canvas');
     }
@@ -215,7 +213,15 @@
       saveCanvas(currentCanvasName);
     }
     currentCanvasName = '';
-    dispatch('clear');
+    // Instead of directly dispatching 'clear', dispatch an event with empty nodes and edges
+    dispatch('load', {
+      nodes: [],
+      edges: []
+    });
+    // After clearing, fit view to reset the viewport
+    setTimeout(() => {
+      dispatch('fitview');
+    }, 50);
   }
   
   function exportCanvases() {

@@ -412,114 +412,138 @@ let edges = writable<Edge[]>([
     const targetNode = $nodes.find(n => n.id === edge.target);
 
     if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
-      startProcessing();
-      activeProcesses.update(n => n + 1);
+        startProcessing();
+        activeProcesses.update(n => n + 1);
 
-      // Process the source node
-      let processedText = sourceNode.data.text;
-      const referencedNodes = [];
+        // Process the source node
+        let processedText = sourceNode.data.text;
+        const referencedNodes = [];
 
-      // Replace references with actual values and collect referenced nodes
-      const regex = /{([^}]+)}/g;
-      processedText = processedText.replace(regex, (match, label) => {
-        const referencedNode = $nodes.find(n => n.data.label === label);
-        if (referencedNode) {
-          referencedNodes.push(referencedNode);
-          if (referencedNode.type === 'result' && referencedNode.data.results) {
-            const content = Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-              ? referencedNode.data.results[referencedNode.data.results.length - 1]
-              : match;
-            return `<${label}>${content}</${label}>`;
-          } else if (referencedNode.type === 'text') {
-            const content = referencedNode.data.text || match;
-            return `<${label}>${content}</${label}>`;
-          }
-        }
-        return match;
-      });
-
-      // Update node classes
-      nodes.update(n => n.map(node => ({
-        ...node,
-        class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
-          ? `${node.class || ''} processing`.trim()
-          : node.class
-      })));
-
-      // Animate the edge
-      edges.update(e => e.map(edge => ({
-        ...edge,
-        animated: edge.id === edgeId,
-        class: edge.id === edgeId ? 'processing-edge' : edge.class
-      })));
-
-      // Delay to allow for visual update
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      let fullResponse = '';
-      try {
-        const response = await getLLMResponse(
-          processedText, 
-          (chunk) => {
-            fullResponse += chunk;
-            // Update the target node with the partial response
-            nodes.update(n => n.map(node => {
-              if (node.id === targetNode.id) {
-                return {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    streamingResult: fullResponse,
-                    results: [...(node.data.results || [])]
-                  }
-                };
-              }
-              return node;
-            }));
-          },
-          () => get(shouldStop)  // Pass the stop check function
-        );
-
-        // Only update with final result if we haven't stopped
-        if (!get(shouldStop)) {
-          nodes.update(n => n.map(node => {
-            if (node.id === targetNode.id) {
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  streamingResult: null,
-                  results: [...(node.data.results || []), response]
+        // Replace references with actual values and collect referenced nodes
+        const regex = /{([^}]+)}/g;
+        processedText = processedText.replace(regex, (match, label) => {
+            const referencedNode = $nodes.find(n => n.data.label === label);
+            if (referencedNode) {
+                referencedNodes.push(referencedNode);
+                if (referencedNode.type === 'result' && referencedNode.data.results) {
+                    const content = Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
+                        ? referencedNode.data.results[referencedNode.data.results.length - 1]
+                        : match;
+                    return `<${label}>${content}</${label}>`;
+                } else if (referencedNode.type === 'text') {
+                    const content = referencedNode.data.text || match;
+                    return `<${label}>${content}</${label}>`;
                 }
-              };
             }
-            return node;
-          }));
-        }
-      } finally {
-        // Reset processing classes and animations
-        nodes.update(n => n.map(node => ({
-          ...node,
-          class: (node.class || '').replace('processing', '').trim()
-        })));
-
-        edges.update(e => e.map(edge => ({
-          ...edge,
-          animated: false,
-          class: (edge.class || '').replace('processing-edge', '').trim()
-        })));
-
-        // Decrement active processes and only reset if we're the last one
-        activeProcesses.update(n => {
-          const newCount = Math.max(0, n - 1);  // Ensure we don't go below 0
-          if (newCount === 0) {
-            resetProcessing();
-          }
-          return newCount;
+            return match;
         });
-      }
+
+        // Update node classes
+        nodes.update(n => n.map(node => ({
+            ...node,
+            class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
+                ? `${node.class || ''} processing`.trim()
+                : node.class
+        })));
+
+        // Animate the edge
+        edges.update(e => e.map(edge => ({
+            ...edge,
+            animated: edge.id === edgeId,
+            class: edge.id === edgeId ? 'processing-edge' : edge.class
+        })));
+
+        // Delay to allow for visual update
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        let fullResponse = '';
+        try {
+            const response = await getLLMResponse(
+                processedText,
+                (chunk) => {
+                    // Check stop condition before processing each chunk
+                    if (get(shouldStop)) {
+                        throw new Error('Processing stopped by user');
+                    }
+                    
+                    fullResponse += chunk;
+                    nodes.update(n => n.map(node => {
+                        if (node.id === targetNode.id) {
+                            return {
+                                ...node,
+                                data: {
+                                    ...node.data,
+                                    streamingResult: fullResponse,
+                                    results: [...(node.data.results || [])]
+                                }
+                            };
+                        }
+                        return node;
+                    }));
+                },
+                () => get(shouldStop)
+            );
+
+            // Only update with final result if we haven't stopped
+            if (!get(shouldStop)) {
+                nodes.update(n => n.map(node => {
+                    if (node.id === targetNode.id) {
+                        return {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                streamingResult: null,
+                                results: [...(node.data.results || []), response]
+                            }
+                        };
+                    }
+                    return node;
+                }));
+            }
+        } catch (error) {
+            if (error.message === 'Processing stopped by user') {
+                // If stopped by user, keep the partial result
+                nodes.update(n => n.map(node => {
+                    if (node.id === targetNode.id) {
+                        return {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                streamingResult: null,
+                                results: [...(node.data.results || []), fullResponse]
+                            }
+                        };
+                    }
+                    return node;
+                }));
+            } else {
+                throw error; // Re-throw if it's not our stop error
+            }
+        } finally {
+            // Reset processing classes and animations
+            nodes.update(n => n.map(node => ({
+                ...node,
+                class: (node.class || '').replace('processing', '').trim()
+            })));
+
+            edges.update(e => e.map(edge => ({
+                ...edge,
+                animated: false,
+                class: (edge.class || '').replace('processing-edge', '').trim()
+            })));
+
+            // Decrement active processes and only reset if we're the last one
+            activeProcesses.update(n => {
+                const newCount = Math.max(0, n - 1);
+                if (newCount === 0) {
+                    resetProcessing();
+                }
+                return newCount;
+            });
+        }
     }
 }
+
 
 
 
@@ -854,72 +878,67 @@ function onPaneClick(event) {
 
 
   async function onBigButtonClick() {
-  // If we're already processing, stop everything
-  if (get(isProcessing)) {
-    stopProcessing();
-    return;
-  }
+    // If we're already processing, stop everything
+    if (get(isProcessing)) {
+        stopProcessing();
+        return;
+    }
 
-  // Start fresh processing cycle
-  startProcessing();
-  activeProcesses.set(0); // Reset counter before starting
+    // Start fresh processing cycle
+    startProcessing();
+    activeProcesses.set(0); // Reset counter before starting
 
-  try {
-    let allNodes = $nodes;
-    let allEdges = $edges;
+    try {
+        const allNodes = $nodes;
+        const allEdges = $edges;
 
-    const graph = buildGraph(allNodes, allEdges);
-    const cycles = findAllCycleNodes(graph);
-    const dependencies = findDependencies(graph, cycles);
-    const loopCounts = getLoopCounts(allEdges, cycles);
+        const graph = buildGraph(allNodes, allEdges);
+        const cycles = findAllCycleNodes(graph);
+        const dependencies = findDependencies(graph, cycles);
+        const loopCounts = getLoopCounts(allEdges, cycles);
 
-    const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
+        const executionOrder = calculateExecutionOrder(allNodes, graph, dependencies, cycles, loopCounts);
 
-    // Process nodes sequentially
-    for (const nodeId of executionOrder) {
-      // Check if stop was requested
-      if (get(shouldStop)) {
-        console.log('Stop requested, breaking execution');
-        break;
-      }
+        // Process nodes sequentially
+        for (const nodeId of executionOrder) {
+            // Check if stop was requested
+            if (get(shouldStop)) {
+                console.log('Stop requested, breaking execution');
+                break;
+            }
 
-      const node = $nodes.find(n => n.id === nodeId);
-      if (node?.type === 'text') {
-        const connectedResultNodes = $edges
-          .filter(edge => edge.source === node.id)
-          .map(edge => $nodes.find(n => n.id === edge.target))
-          .filter(n => n && n.type === 'result');
+            const node = $nodes.find(n => n.id === nodeId);
+            if (node?.type === 'text') {
+                const connectedResultNodes = $edges
+                    .filter(edge => edge.source === node.id)
+                    .map(edge => $nodes.find(n => n.id === edge.target))
+                    .filter(n => n && n.type === 'result');
 
-        // Process result nodes sequentially instead of in parallel
-        for (const resultNode of connectedResultNodes) {
-          if (get(shouldStop)) {
-            console.log('Stop requested during result node processing');
-            break;
-          }
-          
-          const edgeId = $edges.find(e => e.source === node.id && e.target === resultNode.id)?.id;
-          if (edgeId) {
-            activeProcesses.update(n => n + 1);
-            await runConnectedNodes(edgeId);
-          }
+                // Process result nodes sequentially
+                for (const resultNode of connectedResultNodes) {
+                    if (get(shouldStop)) {
+                        console.log('Stop requested during result node processing');
+                        break;
+                    }
+
+                    const edgeId = $edges.find(e => e.source === node.id && e.target === resultNode.id)?.id;
+                    if (edgeId) {
+                        activeProcesses.update(n => n + 1);
+                        await runConnectedNodes(edgeId);
+                    }
+                }
+            }
+
+            // Check again after processing each node
+            if (get(shouldStop)) {
+                break;
+            }
         }
-      }
-      
-      // Check again after processing each node
-      if (get(shouldStop)) {
-        break;
-      }
+    } finally {
+        // Reset everything when done or stopped
+        activeProcesses.set(0);
+        resetProcessing();
     }
-  } finally {
-    // Ensure we clean up properly
-    if (get(shouldStop)) {
-      console.log('Cleaning up after stop');
-      stopProcessing();
-    } else {
-      resetProcessing();
-    }
-    activeProcesses.set(0);
-  }
 }
 
   function calculateExecutionOrder(nodes, graph, dependencies, cycles, loopCounts) {
