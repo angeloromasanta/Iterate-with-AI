@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
-  import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2 } from 'lucide-svelte';
+  import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2, X } from 'lucide-svelte';
   import { isNodeResizing } from './stores'
   import { onMount } from 'svelte';
 
@@ -220,10 +220,15 @@
                     if (e.key === 'Escape') cancelEdit();
                   }}
                 />
-                <div class="edit-buttons">
-                  <button class="edit-button save" on:click={saveEdit}>Save</button>
-                  <button class="edit-button cancel" on:click={cancelEdit}>Cancel</button>
-                </div>
+                  <div class="edit-buttons">
+                    <button class="edit-icon-button" on:click={saveEdit} title="Save">
+                      <Check size={14} />
+                    </button>
+                    <button class="edit-icon-button" on:click={cancelEdit} title="Cancel">
+                      <X size={14} />
+                    </button>
+                  </div>
+
               </div>
             {:else}
               <div class="result-content">
@@ -384,10 +389,34 @@
 }
 
 
-  .edit-buttons {
-    display: flex;
-    gap: 8px;
-  }
+                  .edit-buttons {
+                    display: flex;
+                    gap: 4px;
+                    justify-content: flex-end;
+                    margin-top: 4px;
+                  }
+
+                  .edit-icon-button {
+                    position: absolute;
+                    right: 4px;
+                    top: 4px;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 4px;
+                    color: #666;
+                    border-radius: 4px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0;
+                    transition: opacity 0.2s, background-color 0.2s;
+                  }
+
+
+                  .edit-icon-button:hover {
+                    background: rgba(0, 0, 0, 0.1);
+                  }
   .edit-button {
     padding: 4px 8px;
     border: none;
@@ -395,6 +424,12 @@
     cursor: pointer;
     font-size: 12px;
   }
+                  .edit-button-container {
+                    position: absolute;
+                    bottom: 4px;
+                    right: 4px;
+                    z-index: 1;
+                  }
   .edit-button.save {
     background-color: #4CAF50;
     color: white;
@@ -403,22 +438,11 @@
     background-color: #f44336;
     color: white;
   }
-  .result-content {
-    position: relative;
-    padding-bottom: 24px;
-  }
-  .edit-icon-button {
-    position: sticky;
-    bottom: 4px;
-    float: right;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 2px;
-    opacity: 0;
-    transition: opacity 0.2s;
-    z-index: 1;
-  }
+                  .result-content {
+                    position: relative;
+                    padding-right: 30px; /* Add padding to prevent text from going under the button */
+                    padding-bottom: 24px;
+                  }
   .result-content:hover .edit-icon-button {
     opacity: 1;
   }

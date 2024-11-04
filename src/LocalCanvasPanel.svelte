@@ -3,7 +3,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { defaultCanvases} from './defaultCanvases';
   import type { Node, Edge } from '@xyflow/svelte';
-  import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload } from 'lucide-svelte';
+  import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload, Info } from 'lucide-svelte';
 
   export let nodes;
   export let edges;
@@ -14,6 +14,7 @@
   let isPaneVisible = true;
   let currentCanvasName = '';
   let showToggle = false;
+  let showInfoModal = false;
   
   function initializeDefaultCanvases() {
     const hasInitialized = localStorage.getItem('hasInitializedDefaults');
@@ -299,7 +300,12 @@
 </div>
   
   {#if isPaneVisible}
-    <div class="main-title">Iterate with AI</div>
+    <div class="main-title">
+      Iterate with AI
+      <button class="info-button" on:click={() => showInfoModal = true}>
+        <Info size={18} />
+      </button>
+    </div>
     
     <div class="save-buttons">
       <button class="save-button" on:click={() => saveCanvas(currentCanvasName)} disabled={!currentCanvasName}>
@@ -348,6 +354,44 @@
         Export
       </button>
     </div>
+
+    {#if showInfoModal}
+      <div class="modal-overlay" on:click={() => showInfoModal = false}>
+        <div class="modal-content" on:click|stopPropagation>
+          <h2>👋 Hello there, fellow prompt engineer!</h2>
+
+          <p>Welcome to <strong>Iterate with AI</strong> - where we've boldly moved beyond linear chat interfaces into the wild world of 2D! Because who said AI conversations had to be as one-dimensional as my programming skills? 😅</p>
+
+          <h3>🤔 What's this all about?</h3>
+          <p>Think of this as ChatGPT's cooler cousin who learned to think in graphs instead of straight lines. You can spread your ideas across the canvas.</p>
+
+          <h3>🦙 Models & Privacy</h3>
+          <p>Llama is free because, well, it's a bit cheaper! For fancier models, just plug in your OpenRouter API key. Everything stays between you and your device - I couldn't peek at your prompts even if I wanted to.</p>
+
+          <h3>✨ Two Ways to Play</h3>
+          <p><strong>The Classic Way:</strong> Click anywhere, type your prompt, drag to connect. But wait, there's more!</p>
+          <ul>
+            <li>
+              <p>🔄 Multi-Model Magic: Run your prompt through different models simultaneously! Compare how GPT-4 and Claude handle the same task, or use Llama for drafts and polish with GPT-4. </p>
+            </li>
+
+            <li>
+              <p>🎯 Node References: Use {'{Node Name}'} to reference any node's content in your prompts. Perfect for having multiple texts that you want to analyze interchangeably</p>
+            </li>
+          </ul>
+
+
+          <p><strong>Fancy templates:</strong> Grab a template, hit the zap button, and watch the magic happen. Use the loop feature to iterate your ideas into perfection (or until you run out of tokens)</p>
+
+          <h3>👨‍💻 Behind the Scenes</h3>
+          <p>Created by <a href="https://www.linkedin.com/in/angeloromasanta/"> Angelo</a>, who somehow is convinced that Claude is programming. No prior experience required - just a lot of coffee and questionable life choices! 🎯</p>
+
+          <button class="close-button" on:click={() => showInfoModal = false}>Got it!</button>
+        </div>
+      </div>
+    {/if}
+
+
   {/if}
 </div>
 
@@ -450,22 +494,13 @@
     justify-content: center;
     gap: 8px;
     padding: 8px;
-    background: #e6f3ff;
-    border: 1px solid #add6ff;
+    background: #dde8ed;
+    border: 1px solid #ccc;
     border-radius: 4px;
-    color: #0066cc;
+    color: #333;
     cursor: pointer;
     font-size: 12px;
     transition: background-color 0.2s;
-  }
-
-  .save-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .save-button:hover:not(:disabled), .save-as-button:hover {
-    background: #d1e8ff;
   }
 
   .add-button {
@@ -475,15 +510,29 @@
     gap: 8px;
     margin: 8px;
     padding: 8px;
-    background: #e6ffe6;
-    border: 1px solid #b3ffb3;
+    background: #dde8ed;
+    border: 1px solid #ccc;
     border-radius: 4px;
-    color: #008000;
+    color: #333;
     cursor: pointer;
     font-size: 12px;
     width: calc(100% - 16px);
     transition: background-color 0.2s;
   }
+
+ 
+
+  
+  .save-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .save-button:hover:not(:disabled), .save-as-button:hover, .add-button:hover {
+    background: #c8d8e0;
+  }
+
+
 
   .add-button:hover {
     background: #d1ffd1;
@@ -596,4 +645,88 @@
   .export-button:hover {
     background: #d1ffe6;
   }
+  .info-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #666;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+  }
+
+  .info-button:hover {
+    color: #333;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999; /* Increased z-index to be above all other elements */
+  }
+
+  .modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000; /* Even higher z-index than the overlay */
+  }
+
+
+  .modal-content h2 {
+    margin-top: 0;
+    color: #333;
+    font-size: 24px;
+  }
+
+  .modal-content h3 {
+    margin-top: 20px;
+    color: #444;
+    font-size: 18px;
+  }
+
+  .modal-content p {
+    color: #666;
+    line-height: 1.5;
+    margin: 12px 0;
+  }
+
+  .close-button {
+    display: block;
+    margin: 20px auto 0;
+    padding: 8px 16px;
+    background: #dde8ed;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+  }
+
+  .close-button:hover {
+    background: #c8d8e0;
+  }
+
+  .main-title {
+    padding: 15px;
+    font-size: 24px;
+    font-weight: bold;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+  }
+
 </style>

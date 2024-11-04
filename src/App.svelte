@@ -1276,7 +1276,7 @@ function onPaneClick(event) {
     onedgecreate={handleEdgeCreate}
     onconnectend={handleConnectEnd}
   >
-    <Controls />
+    <Controls position="bottom-right" />
     <Background variant={BackgroundVariant.Dots} />
 
     <div class="custom-controls">
@@ -1317,12 +1317,12 @@ function onPaneClick(event) {
 
   .custom-controls {
     position: absolute;
-    right: 20px;
+    right: 70px; /* Moved further right to make space for controls */
     bottom: 20px;
     z-index: 10;
   }
   .custom-button {
-    background-color: #ffd500;
+    background-color: #4a5568; /* Changed from #ffd500 to match play button */
     border: none;
     border-radius: 50%;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.08);
@@ -1334,11 +1334,11 @@ function onPaneClick(event) {
     transition: all 0.3s ease;
     cursor: pointer;
     outline: none;
-    color: #333; /* Icon color */
+    color: white; /* Changed from #333 to white for better contrast */
   }
 
   .custom-button:hover {
-    background-color: #e0e0e0;
+    background-color: #64748b; /* Changed to lighter grey on hover */
     transform: translateY(-2px);
     box-shadow: 0 7px 14px rgba(0,0,0,0.1), 0 3px 6px rgba(0,0,0,0.08);
   }
@@ -1396,7 +1396,7 @@ function onPaneClick(event) {
     position: absolute;
     top: 10px;
     right: 10px;
-    z-index: 10;
+    z-index: 1; /* Lower z-index than the modal */
   }
 
   .title {
@@ -1443,24 +1443,5 @@ function onPaneClick(event) {
     font-style: italic;
   }
 
-    @media (max-width: 768px) {
-      .custom-controls {
-        bottom: 20px; /* Keep it at bottom even on mobile */
-        right: 20px;
-      }
-
-      :global(.svelte-flow__controls) {
-        bottom: 90px; /* Move the flow controls above the button */
-        right: 20px;
-      }
-    
-    .title {
-      font-size: 20px; /* Slightly smaller font size for mobile */
-    }
-
-    .info-icon {
-      top: 40px; /* Move it below the title */
-      left: 10px; /* Align with the title */
-    }
-  }
+   
 </style>

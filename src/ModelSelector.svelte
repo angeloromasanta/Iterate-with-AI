@@ -100,6 +100,7 @@
     border-radius: 4px;
     border: 1px solid #ccc;
     min-width: 200px;
+    z-index: 100;
   }
 
   .header {

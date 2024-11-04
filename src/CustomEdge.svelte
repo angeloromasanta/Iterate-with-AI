@@ -192,19 +192,19 @@
   />
 
   {#if isHovered || isMobile}
-    <g transform={`translate(${buttonX - 40}, ${buttonY - 20})`}>
-      <!-- Play button -->
-      <g on:mousedown|stopPropagation={onPlay} style="cursor: pointer;">
-        <circle cx="20" cy="20" r="18" fill="#4CAF50" />
-        <Play size={20} color="white" x={10} y={10} />
-      </g>
+      <g transform={`translate(${buttonX - 40}, ${buttonY - 20})`}>
+        <!-- Play button -->
+        <g on:mousedown|stopPropagation={onPlay} style="cursor: pointer;">
+          <circle cx="20" cy="20" r="18" fill="#4a5568" /> <!-- Dark grey with slight blue tint -->
+          <Play size={20} color="white" x={10} y={10} />
+        </g>
 
-      <!-- Delete button -->
-      <g on:mousedown|stopPropagation={onDelete} style="cursor: pointer;">
-        <circle cx="60" cy="20" r="18" fill="#F44336" />
-        <Trash2 size={20} color="white" x={50} y={10} />
+        <!-- Delete button -->
+        <g on:mousedown|stopPropagation={onDelete} style="cursor: pointer;">
+          <circle cx="60" cy="20" r="18" fill="#64748b" /> <!-- Slightly lighter grey -->
+          <Trash2 size={20} color="white" x={50} y={10} />
+        </g>
       </g>
-    </g>
   {/if}
 
   {#if data && data.showLoopCount}
