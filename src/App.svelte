@@ -1371,46 +1371,43 @@ function onPaneClick(event) {
 
 <style>
    :global(body) {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: Arial, sans-serif;
-    /* Prevent overscroll on mobile */
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-  }
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+  /* Remove fixed positioning that can cause issues */
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
 
+main {
+  /* Use fallback for browsers that don't support dvh */
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height */
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Ensure SvelteFlow container fills available space */
+:global(.svelte-flow) {
+  flex: 1;
+  touch-action: none;
+  height: 100%; /* Ensure it fills the flex container */
+}
+
+.custom-controls {
+  /* Use bottom padding to account for mobile browser bars */
+  position: fixed;
+  right: 70px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 10;
+}
   :global(*) {
     box-sizing: inherit;
-  }
-
-  main {
-    height: 100vh;
-    width: 100vw;
-    position: relative;
-    /* Use flex to ensure proper sizing */
-    display: flex;
-    flex-direction: column;
-    /* Prevent content from overflowing */
-    overflow: hidden;
-  }
-
-  /* Ensure SvelteFlow takes up remaining space */
-  :global(.svelte-flow) {
-    flex: 1;
-    touch-action: none; /* Prevent default touch behaviors */
-  }
-
-
-
-
-   .custom-controls {
-    position: fixed; /* Changed from absolute to fixed */
-    right: 70px;
-    bottom: 20px;
-    z-index: 10;
   }
 
   .model-selector-container {
@@ -1540,19 +1537,16 @@ function onPaneClick(event) {
   display: none;
 }
  @media screen and (max-width: 768px) {
-    .custom-controls {
-      right: 20px; /* Adjusted for mobile */
-      bottom: 70px; /* Move up to avoid overlap with Controls component */
-    }
-
-    .custom-button {
-      width: 45px; /* Even smaller on mobile */
-      height: 45px;
-    }
-
-    .model-selector-container {
-      top: 5px;
-      right: 5px;
-    }
+  /* Keep custom-controls (zap button) as is */
+  .custom-controls {
+    right: 10px;
+    bottom: 15px; /* Adjust if needed */
   }
+
+  /* Hide the SvelteFlow controls but keep custom-controls visible */
+  :global(.svelte-flow__controls) {
+    display: none !important;
+  }
+}
+
 </style>

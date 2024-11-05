@@ -403,19 +403,22 @@
 
 <style>
    .panel {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 250px;
-    background: #f8faff;
-    border-right: 1px solid #ccc;
-    display: flex;
-    flex-direction: column;
-    z-index: 5;
-    transition: width 0.3s ease;
-    font-size: 12px;
-  }
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* Use dynamic viewport height and account for safe area */
+  height: 100dvh;
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  width: 250px;
+  background: #f8faff;
+  border-right: 1px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+  transition: width 0.3s ease;
+  font-size: 12px;
+}
+
 
   .panel.collapsed {
     width: auto;
@@ -545,12 +548,15 @@
   }
 
   .canvas-list {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-  }
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  /* Add padding at bottom to ensure last items are visible */
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
 
   .canvas-item {
     display: flex;
@@ -622,12 +628,16 @@
   }
 
   .import-export-buttons {
-    padding: 8px;
-    display: flex;
-    gap: 8px;
-    border-top: 1px solid #eee;
-  }
-
+  padding: 8px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #eee;
+  background: #f8faff; /* Match panel background */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
   .import-button, .export-button {
     flex: 1;
     display: flex;
