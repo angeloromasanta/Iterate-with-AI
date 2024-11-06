@@ -211,37 +211,36 @@
         {#each completedResults as result, index}
           <div class="result selectable">
             {#if editingIndex === index}
-              <div class="edit-container">
-                <textarea
-                  class="edit-textarea"
-                  bind:value={editingContent}
-                  on:keydown={(e) => {
-                    if (e.key === 'Enter' && e.ctrlKey) saveEdit();
-                    if (e.key === 'Escape') cancelEdit();
-                  }}
-                />
-                  <div class="edit-buttons">
-                    <button class="edit-icon-button" on:click={saveEdit} title="Save">
-                      <Check size={14} />
-                    </button>
-                    <button class="edit-icon-button" on:click={cancelEdit} title="Cancel">
-                      <X size={14} />
-                    </button>
-                  </div>
-
-              </div>
-            {:else}
-              <div class="result-content">
-                {@html formatText(result)}
-                <button 
-                  class="edit-icon-button" 
-                  on:click={() => startEditing(index, result)}
-                  title="Edit result"
-                >
-                  <Edit2 size={14} />
-                </button>
-              </div>
-            {/if}
+    <div class="edit-container">
+      <textarea
+        class="edit-textarea"
+        bind:value={editingContent}
+        on:keydown={(e) => {
+          if (e.key === 'Enter' && e.ctrlKey) saveEdit();
+          if (e.key === 'Escape') cancelEdit();
+        }}
+      />
+      <div class="edit-buttons">
+        <button class="edit-action-button" on:click={saveEdit} title="Save">
+          <Check size={14} />
+        </button>
+        <button class="edit-action-button" on:click={cancelEdit} title="Cancel">
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  {:else}
+    <div class="result-content">
+      {@html formatText(result)}
+      <button 
+        class="edit-icon-button" 
+        on:click={() => startEditing(index, result)}
+        title="Edit result"
+      >
+        <Edit2 size={14} />
+      </button>
+    </div>
+  {/if}
           </div>
         {/each}
         {#if streamingResult}

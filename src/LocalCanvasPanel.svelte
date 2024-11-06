@@ -1,7 +1,7 @@
-<!-- LocalCanvasPanel.svelte -->
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { defaultCanvases} from './defaultCanvases';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+import { writable } from 'svelte/store';
+  import { defaultCanvases } from './defaultCanvases';
   import type { Node, Edge } from '@xyflow/svelte';
   import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload, Info } from 'lucide-svelte';
 
@@ -15,153 +15,332 @@
   let currentCanvasName = '';
   let showToggle = false;
   let showInfoModal = false;
+  let db: IDBDatabase;
   
-  function initializeDefaultCanvases() {
-    const hasInitialized = localStorage.getItem('hasInitializedDefaults');
-    
-    if (!hasInitialized) {
-      Object.entries(defaultCanvases).forEach(([name, canvas]) => {
-        localStorage.setItem(`canvas_${name}`, JSON.stringify(canvas));
-      });
+  
+  const DB_NAME = 'CanvasStorage';
+  const DB_VERSION = 1;
+  const CANVAS_STORE = 'canvases';
+  const METADATA_STORE = 'metadata';
+  const saveStatus = writable<{ saving: boolean; lastSaved: Date | null }>({
+  saving: false,
+  lastSaved: null
+});
+let autoSaveInterval: number;
+let debounceTimer: number;
+const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
+const SAVE_DEBOUNCE_DELAY = 2000; // 2 seconds
 
-      const defaultCanvasNames = Object.keys(defaultCanvases);
-      localStorage.setItem('canvasList', JSON.stringify(defaultCanvasNames));
-      localStorage.setItem('hasInitializedDefaults', 'true');
-      loadCanvas('Tutorial Canvas');
-      savedCanvases = defaultCanvasNames;
+
+async function performAutoSave() {
+  if (currentCanvasName) {
+    saveStatus.set({ saving: true, lastSaved: null });
+    await saveCanvas(currentCanvasName);
+    saveStatus.set({ saving: false, lastSaved: new Date() });
+  }
+}
+
+
+  async function initDB(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onerror = () => reject(request.error);
+
+      request.onsuccess = () => {
+        db = request.result;
+        resolve();
+      };
+
+      request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        
+        // Store for canvas data
+        if (!db.objectStoreNames.contains(CANVAS_STORE)) {
+          db.createObjectStore(CANVAS_STORE);
+        }
+        
+        // Store for canvas list and metadata
+        if (!db.objectStoreNames.contains(METADATA_STORE)) {
+          db.createObjectStore(METADATA_STORE);
+        }
+      };
+    });
+  }
+
+  onDestroy(() => {
+  if (autoSaveInterval) {
+    clearInterval(autoSaveInterval);
+  }
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+});
+
+  async function initializeDefaultCanvases() {
+    try {
+      const hasInitialized = await getFromStore(METADATA_STORE, 'hasInitializedDefaults');
+      
+      if (!hasInitialized) {
+        for (const [name, canvas] of Object.entries(defaultCanvases)) {
+          await saveToStore(CANVAS_STORE, name, canvas);
+        }
+
+        const defaultCanvasNames = Object.keys(defaultCanvases);
+        await saveToStore(METADATA_STORE, 'canvasList', defaultCanvasNames);
+        await saveToStore(METADATA_STORE, 'hasInitializedDefaults', true);
+        
+        await loadCanvas('Tutorial Canvas');
+        savedCanvases = defaultCanvasNames;
+      }
+    } catch (error) {
+      console.error('Error initializing default canvases:', error);
     }
   }
 
-  function loadSavedCanvasList() {
-    const canvasList = localStorage.getItem('canvasList');
-    if (!canvasList) {
-      initializeDefaultCanvases();
-    } else {
-      savedCanvases = JSON.parse(canvasList);
+  async function loadSavedCanvasList() {
+    try {
+      const canvasList = await getFromStore(METADATA_STORE, 'canvasList');
+      if (!canvasList) {
+        await initializeDefaultCanvases();
+      } else {
+        savedCanvases = canvasList;
+      }
+    } catch (error) {
+      console.error('Error loading canvas list:', error);
     }
   }
 
-  onMount(() => {
-    loadSavedCanvasList();
+  onMount(async () => {
+  await initDB();
+  await loadSavedCanvasList();
+  
+  // Set up auto-save interval
+  autoSaveInterval = setInterval(async () => {
+    if (currentCanvasName) {
+      await performAutoSave();
+    }
+  }, AUTO_SAVE_INTERVAL);
+
+  // Add window beforeunload handler
+  window.addEventListener('beforeunload', async (e) => {
+    if (currentCanvasName) {
+      e.preventDefault();
+      await saveCanvas(currentCanvasName);
+    }
   });
-
-  loadSavedCanvasList();
-
-  function togglePane() {
-    isPaneVisible = !isPaneVisible;
-  }
+});
 
   function validateNodeStructure(node) {
-    if (!node || typeof node !== 'object') {
-      console.error('Invalid node object:', node);
-      return false;
-    }
-    
-    const requiredFields = ['id', 'type', 'data', 'position'];
-    for (const field of requiredFields) {
-      if (!(field in node)) {
-        console.error(`Missing required field '${field}' in node:`, node);
-        return false;
-      }
-    }
-    
-    return true;
+    if (!node || typeof node !== 'object') return false;
+    return ['id', 'type', 'data', 'position'].every(field => field in node);
   }
 
   function validateEdgeStructure(edge) {
-    if (!edge || typeof edge !== 'object') {
-      console.error('Invalid edge object:', edge);
-      return false;
-    }
-    
-    const requiredFields = ['id', 'source', 'target'];
-    for (const field of requiredFields) {
-      if (!(field in edge)) {
-        console.error(`Missing required field '${field}' in edge:`, edge);
-        return false;
+    if (!edge || typeof edge !== 'object') return false;
+    return ['id', 'source', 'target'].every(field => field in edge);
+  }
+
+  async function saveToStore(storeName: string, key: string, value: any): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.put(value, key);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function getFromStore(storeName: string, key: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readonly');
+      const store = transaction.objectStore(storeName);
+      const request = store.get(key);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function deleteFromStore(storeName: string, key: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.delete(key);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  
+
+  function serializeNode(node) {
+  // Create a clean copy of the node without functions
+  const serializedNode = {
+    id: node.id,
+    type: node.type,
+    position: { ...node.position },
+    data: {}
+  };
+
+  // Copy only serializable data properties
+  if (node.data) {
+    Object.keys(node.data).forEach(key => {
+      // Skip if the value is a function
+      if (typeof node.data[key] !== 'function') {
+        serializedNode.data[key] = node.data[key];
       }
-    }
-    
-    return true;
+    });
   }
 
-  function saveCanvas(name: string) {
-    if (!name) return;
-    
+  // Copy other common node properties if they exist and aren't functions
+  const commonProps = ['selected', 'draggable', 'selectable', 'connectable'];
+  commonProps.forEach(prop => {
+    if (prop in node && typeof node[prop] !== 'function') {
+      serializedNode[prop] = node[prop];
+    }
+  });
+
+  // Handle style if present
+  if (node.style && typeof node.style !== 'function') {
+    serializedNode.style = node.style;
+  }
+
+  return serializedNode;
+}
+
+function serializeEdge(edge) {
+  // Create a clean copy of the edge without functions
+  const serializedEdge = {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    type: edge.type,
+    data: {}
+  };
+
+  // Copy edge data if it exists, excluding functions
+  if (edge.data) {
+    Object.keys(edge.data).forEach(key => {
+      if (typeof edge.data[key] !== 'function') {
+        serializedEdge.data[key] = edge.data[key];
+      }
+    });
+  }
+
+  // Copy other common edge properties
+  const commonProps = [
+    'sourceHandle', 
+    'targetHandle', 
+    'selected', 
+    'animated', 
+    'hidden',
+    'label',
+    'style',
+    'markerEnd',
+    'markerStart'
+  ];
+  
+  commonProps.forEach(prop => {
+    if (prop in edge && typeof edge[prop] !== 'function') {
+      serializedEdge[prop] = edge[prop];
+    }
+  });
+
+  return serializedEdge;
+}
+
+async function saveCanvas(name: string) {
+  if (!name) return;
+  
+  try {
+    const serializedNodes = $nodes
+      .filter(validateNodeStructure)
+      .map(serializeNode);
+      
+    const serializedEdges = $edges
+      .filter(validateEdgeStructure)
+      .map(serializeEdge);
+
     const canvasData = {
-      nodes: $nodes.filter(validateNodeStructure),
-      edges: $edges.filter(validateEdgeStructure)
+      nodes: serializedNodes,
+      edges: serializedEdges,
+      timestamp: Date.now()
     };
 
-    try {
-      localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
-    } catch (error) {
-      console.error('Error saving canvas:', error);
-      alert('Error saving canvas');
-    }
+    await saveToStore(CANVAS_STORE, name, canvasData);
+  } catch (error) {
+    console.error('Error saving canvas:', error);
+    alert('Error saving canvas: ' + error.message);
+  }
+}
+
+async function saveCurrentCanvas() {
+  const firstTextNode = $nodes.find(node => 
+    node.type === 'text' && 
+    node.data?.text?.trim()
+  );
+  
+  let defaultName = firstTextNode 
+    ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
+    : `Canvas ${new Date().toLocaleString()}`;
+
+  let uniqueName = defaultName;
+  let counter = 1;
+  while (savedCanvases.includes(uniqueName)) {
+    uniqueName = `${defaultName} (${counter})`;
+    counter++;
   }
 
-  function saveCurrentCanvas() {
-    const firstTextNode = $nodes.find(node => 
-      node.type === 'text' && 
-      node.data?.text?.trim()
-    );
-    
-    let defaultName = firstTextNode 
-      ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
-      : `Canvas ${new Date().toLocaleString()}`;
-
-    let uniqueName = defaultName;
-    let counter = 1;
-    while (savedCanvases.includes(uniqueName)) {
-      uniqueName = `${defaultName} (${counter})`;
-      counter++;
-    }
+  try {
+    const serializedNodes = $nodes
+      .filter(validateNodeStructure)
+      .map(serializeNode);
+      
+    const serializedEdges = $edges
+      .filter(validateEdgeStructure)
+      .map(serializeEdge);
 
     const canvasData = {
-      nodes: $nodes.filter(validateNodeStructure),
-      edges: $edges.filter(validateEdgeStructure)
+      nodes: serializedNodes,
+      edges: serializedEdges,
+      timestamp: Date.now()
     };
 
-    try {
-      localStorage.setItem(`canvas_${uniqueName}`, JSON.stringify(canvasData));
-      savedCanvases = [...savedCanvases, uniqueName];
-      localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
-      currentCanvasName = uniqueName;
-    } catch (error) {
-      console.error('Error saving canvas:', error);
-      alert('Error saving canvas');
-    }
+    await saveToStore(CANVAS_STORE, uniqueName, canvasData);
+    savedCanvases = [...savedCanvases, uniqueName];
+    await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
+    currentCanvasName = uniqueName;
+  } catch (error) {
+    console.error('Error saving canvas:', error);
+    alert('Error saving canvas: ' + error.message);
+  }
+}
+
+
+
+async function loadCanvas(name: string) {
+  if (currentCanvasName) {
+    await performAutoSave();
   }
 
-  function loadCanvas(name: string) {
-    if (currentCanvasName) {
-      saveCanvas(currentCanvasName);
-    }
+  try {
+    const canvasData = await getFromStore(CANVAS_STORE, name);
 
-    const canvasData = localStorage.getItem(`canvas_${name}`);
 
-    if (!canvasData) {
-      console.error('No canvas data found for name:', name);
-      return;
-    }
-
-    try {
-      const parsedData = JSON.parse(canvasData);
-
-      if (!parsedData || !parsedData.nodes || !parsedData.edges) {
-        console.error('Invalid canvas data structure:', parsedData);
+      if (!canvasData || !canvasData.nodes || !canvasData.edges) {
+        console.error('Invalid canvas data structure:', canvasData);
         alert('Error: Invalid canvas data structure');
         return;
       }
 
-      const validNodes = Array.isArray(parsedData.nodes) 
-        ? parsedData.nodes.filter(validateNodeStructure)
-        : Object.values(parsedData.nodes).filter(validateNodeStructure);
+      const validNodes = Array.isArray(canvasData.nodes) 
+        ? canvasData.nodes.filter(validateNodeStructure)
+        : Object.values(canvasData.nodes).filter(validateNodeStructure);
 
-      const validEdges = Array.isArray(parsedData.edges)
-        ? parsedData.edges.filter(validateEdgeStructure)
-        : Object.values(parsedData.edges).filter(validateEdgeStructure);
+      const validEdges = Array.isArray(canvasData.edges)
+        ? canvasData.edges.filter(validateEdgeStructure)
+        : Object.values(canvasData.edges).filter(validateEdgeStructure);
 
       if (validNodes.length === 0) {
         console.error('No valid nodes found in canvas data');
@@ -178,77 +357,93 @@
         dispatch('fitview');
       }, 50);
     } catch (error) {
-      console.error('Error parsing canvas data:', error);
+      console.error('Error loading canvas:', error);
       alert('Error loading canvas');
     }
   }
 
-  function renameCanvas(oldName: string) {
+  async function renameCanvas(oldName: string) {
     const newName = prompt('Enter new name:', oldName);
     if (newName && newName !== oldName) {
-      const canvasData = localStorage.getItem(`canvas_${oldName}`);
-      localStorage.setItem(`canvas_${newName}`, canvasData);
-      localStorage.removeItem(`canvas_${oldName}`);
-      savedCanvases = savedCanvases.map(n => n === oldName ? newName : n);
-      localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
-      if (currentCanvasName === oldName) {
-        currentCanvasName = newName;
+      try {
+        const canvasData = await getFromStore(CANVAS_STORE, oldName);
+        await saveToStore(CANVAS_STORE, newName, canvasData);
+        await deleteFromStore(CANVAS_STORE, oldName);
+        
+        savedCanvases = savedCanvases.map(n => n === oldName ? newName : n);
+        await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
+        
+        if (currentCanvasName === oldName) {
+          currentCanvasName = newName;
+        }
+      } catch (error) {
+        console.error('Error renaming canvas:', error);
+        alert('Error renaming canvas');
       }
     }
   }
 
-  function deleteCanvas(name: string) {
+  async function deleteCanvas(name: string) {
     if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
 
-    localStorage.removeItem(`canvas_${name}`);
-    savedCanvases = savedCanvases.filter(n => n !== name);
-    localStorage.setItem('canvasList', JSON.stringify(savedCanvases));
-    if (currentCanvasName === name) {
-      currentCanvasName = '';
-    }
-  }
-
-  function createNewCanvas() {
-    if (currentCanvasName) {
-      saveCanvas(currentCanvasName);
-    }
-    currentCanvasName = '';
-    // Instead of directly dispatching 'clear', dispatch an event with empty nodes and edges
-    dispatch('load', {
-      nodes: [],
-      edges: []
-    });
-    // After clearing, fit view to reset the viewport
-    setTimeout(() => {
-      dispatch('fitview');
-    }, 50);
-  }
-  
-  function exportCanvases() {
-    const exportData = {
-      canvasList: savedCanvases,
-      canvases: {}
-    };
-    
-    savedCanvases.forEach(name => {
-      const canvasData = localStorage.getItem(`canvas_${name}`);
-      if (canvasData) {
-        exportData.canvases[name] = JSON.parse(canvasData);
+    try {
+      await deleteFromStore(CANVAS_STORE, name);
+      savedCanvases = savedCanvases.filter(n => n !== name);
+      await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
+      
+      if (currentCanvasName === name) {
+        currentCanvasName = '';
       }
-    });
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `canvases-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error deleting canvas:', error);
+      alert('Error deleting canvas');
+    }
   }
 
-  function importCanvases() {
+  async function createNewCanvas() {
+  if (currentCanvasName) {
+    await performAutoSave();
+  }
+  currentCanvasName = '';
+  dispatch('load', {
+    nodes: [],
+    edges: []
+  });
+  setTimeout(() => {
+    dispatch('fitview');
+  }, 50);
+}
+  
+  async function exportCanvases() {
+    try {
+      const exportData = {
+        canvasList: savedCanvases,
+        canvases: {}
+      };
+      
+      for (const name of savedCanvases) {
+        const canvasData = await getFromStore(CANVAS_STORE, name);
+        if (canvasData) {
+          exportData.canvases[name] = canvasData;
+        }
+      }
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `canvases-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting canvases:', error);
+      alert('Error exporting canvases');
+    }
+  }
+
+  async function importCanvases() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -265,16 +460,16 @@
           throw new Error('Invalid import file format');
         }
 
-        importData.canvasList.forEach(name => {
+        for (const name of importData.canvasList) {
           const canvasData = importData.canvases[name];
           if (canvasData) {
-            localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
+            await saveToStore(CANVAS_STORE, name, canvasData);
           }
-        });
+        }
 
         const newCanvasList = [...new Set([...savedCanvases, ...importData.canvasList])];
         savedCanvases = newCanvasList;
-        localStorage.setItem('canvasList', JSON.stringify(newCanvasList));
+        await saveToStore(METADATA_STORE, 'canvasList', newCanvasList);
 
         alert('Canvases imported successfully!');
       } catch (error) {
@@ -284,6 +479,10 @@
     };
 
     input.click();
+  }
+
+  function togglePane() {
+    isPaneVisible = !isPaneVisible;
   }
 </script>
 
@@ -312,18 +511,13 @@
         <Info size={18} />
       </button>
     </div>
-    
-    <div class="save-buttons">
-      <button class="save-button" on:click={() => saveCanvas(currentCanvasName)} disabled={!currentCanvasName}>
-        <Save size={18} />
-        Save
-      </button>
+
+    <div class="action-button-container">
       <button class="save-as-button" on:click={saveCurrentCanvas}>
         <Save size={18} />
         Save As
       </button>
     </div>
-
     <div class="canvas-list">
       {#if savedCanvases.length === 0}
         <div class="empty-state">No saved canvases</div>
@@ -349,6 +543,13 @@
         <Plus size={18} />
         Add new canvas
       </button>
+      <div class="save-status">
+        {#if $saveStatus.saving}
+          <div class="status-text">Saving...</div>
+        {:else if $saveStatus.lastSaved}
+          <div class="status-text">Saved {$saveStatus.lastSaved.toLocaleTimeString()}</div>
+        {/if}
+      </div>
     </div>
     <div class="import-export-buttons">
       <button class="import-button" on:click={importCanvases}>
@@ -496,21 +697,22 @@
     margin: 8px;
   }
 
-  .save-button, .save-as-button {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 8px;
-    background: #dde8ed;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    color: #333;
-    cursor: pointer;
-    font-size: 12px;
-    transition: background-color 0.2s;
-  }
+  .save-as-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  background: #dde8ed;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  color: #333;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
 
   .add-button {
     display: flex;
@@ -618,7 +820,21 @@
   .delete-btn:hover {
     color: #ff4136;
   }
+  .action-button-container {
+      padding: 8px;
+    }
 
+    .save-status {
+      padding: 0 8px;
+      font-size: 11px;
+      color: #666;
+      text-align: center;
+      height: 16px;
+    }
+
+    .status-text {
+      opacity: 0.8;
+    }
   .empty-state {
     color: #666;
     text-align: center;
