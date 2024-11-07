@@ -1,9 +1,10 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-import { writable } from 'svelte/store';
+  import { writable } from 'svelte/store';
   import { defaultCanvases } from './defaultCanvases';
   import type { Node, Edge } from '@xyflow/svelte';
-  import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload, Info } from 'lucide-svelte';
+  import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload, Info, Copy } from 'lucide-svelte';
+  import { selectedModel, isNodeResizing, secondaryModels, isProcessing, shouldStop, startProcessing, stopProcessing, resetProcessing, activeProcesses } from './stores';
 
   export let nodes;
   export let edges;
@@ -17,29 +18,10 @@ import { writable } from 'svelte/store';
   let showInfoModal = false;
   let db: IDBDatabase;
   
-  
   const DB_NAME = 'CanvasStorage';
   const DB_VERSION = 1;
   const CANVAS_STORE = 'canvases';
   const METADATA_STORE = 'metadata';
-  const saveStatus = writable<{ saving: boolean; lastSaved: Date | null }>({
-  saving: false,
-  lastSaved: null
-});
-let autoSaveInterval: number;
-let debounceTimer: number;
-const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
-const SAVE_DEBOUNCE_DELAY = 2000; // 2 seconds
-
-
-async function performAutoSave() {
-  if (currentCanvasName) {
-    saveStatus.set({ saving: true, lastSaved: null });
-    await saveCanvas(currentCanvasName);
-    saveStatus.set({ saving: false, lastSaved: new Date() });
-  }
-}
-
 
   async function initDB(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -54,13 +36,9 @@ async function performAutoSave() {
 
       request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Store for canvas data
         if (!db.objectStoreNames.contains(CANVAS_STORE)) {
           db.createObjectStore(CANVAS_STORE);
         }
-        
-        // Store for canvas list and metadata
         if (!db.objectStoreNames.contains(METADATA_STORE)) {
           db.createObjectStore(METADATA_STORE);
         }
@@ -68,12 +46,22 @@ async function performAutoSave() {
     });
   }
 
+  onMount(async () => {
+    await initDB();
+    await loadSavedCanvasList();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+  });
+
   onDestroy(() => {
-  if (autoSaveInterval) {
-    clearInterval(autoSaveInterval);
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  });
+
+  async function handleBeforeUnload(e: BeforeUnloadEvent) {
+    if (currentCanvasName) {
+      e.preventDefault();
+      await saveCanvas(currentCanvasName);
+    }
   }
-  window.removeEventListener('beforeunload', handleBeforeUnload);
-});
 
   async function initializeDefaultCanvases() {
     try {
@@ -109,31 +97,29 @@ async function performAutoSave() {
     }
   }
 
-  onMount(async () => {
-  await initDB();
-  await loadSavedCanvasList();
   
-  // Set up auto-save interval
-  autoSaveInterval = setInterval(async () => {
-    if (currentCanvasName) {
-      await performAutoSave();
-    }
-  }, AUTO_SAVE_INTERVAL);
-
-  // Add window beforeunload handler
-  window.addEventListener('beforeunload', async (e) => {
-    if (currentCanvasName) {
-      e.preventDefault();
-      await saveCanvas(currentCanvasName);
-    }
-  });
-});
-
   function validateNodeStructure(node) {
     if (!node || typeof node !== 'object') return false;
-    return ['id', 'type', 'data', 'position'].every(field => field in node);
-  }
-
+    
+    // Check required top-level properties
+    if (!('id' in node && 'type' in node && 'position' in node && 'data' in node)) {
+        return false;
+    }
+    
+    // Validate position
+    if (typeof node.position !== 'object' || 
+        !('x' in node.position) || 
+        !('y' in node.position)) {
+        return false;
+    }
+    
+    // Validate data object
+    if (typeof node.data !== 'object') {
+        return false;
+    }
+    
+    return true;
+}
   function validateEdgeStructure(edge) {
     if (!edge || typeof edge !== 'object') return false;
     return ['id', 'source', 'target'].every(field => field in edge);
@@ -172,193 +158,165 @@ async function performAutoSave() {
     });
   }
 
-  
-
   function serializeNode(node) {
-  // Create a clean copy of the node without functions
-  const serializedNode = {
-    id: node.id,
-    type: node.type,
-    position: { ...node.position },
-    data: {}
-  };
-
-  // Copy only serializable data properties
-  if (node.data) {
-    Object.keys(node.data).forEach(key => {
-      // Skip if the value is a function
-      if (typeof node.data[key] !== 'function') {
-        serializedNode.data[key] = node.data[key];
-      }
-    });
-  }
-
-  // Copy other common node properties if they exist and aren't functions
-  const commonProps = ['selected', 'draggable', 'selectable', 'connectable'];
-  commonProps.forEach(prop => {
-    if (prop in node && typeof node[prop] !== 'function') {
-      serializedNode[prop] = node[prop];
-    }
-  });
-
-  // Handle style if present
-  if (node.style && typeof node.style !== 'function') {
-    serializedNode.style = node.style;
-  }
-
-  return serializedNode;
-}
-
-function serializeEdge(edge) {
-  // Create a clean copy of the edge without functions
-  const serializedEdge = {
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    type: edge.type,
-    data: {}
-  };
-
-  // Copy edge data if it exists, excluding functions
-  if (edge.data) {
-    Object.keys(edge.data).forEach(key => {
-      if (typeof edge.data[key] !== 'function') {
-        serializedEdge.data[key] = edge.data[key];
-      }
-    });
-  }
-
-  // Copy other common edge properties
-  const commonProps = [
-    'sourceHandle', 
-    'targetHandle', 
-    'selected', 
-    'animated', 
-    'hidden',
-    'label',
-    'style',
-    'markerEnd',
-    'markerStart'
-  ];
-  
-  commonProps.forEach(prop => {
-    if (prop in edge && typeof edge[prop] !== 'function') {
-      serializedEdge[prop] = edge[prop];
-    }
-  });
-
-  return serializedEdge;
-}
-
-async function saveCanvas(name: string) {
-  if (!name) return;
-  
-  try {
-    const serializedNodes = $nodes
-      .filter(validateNodeStructure)
-      .map(serializeNode);
-      
-    const serializedEdges = $edges
-      .filter(validateEdgeStructure)
-      .map(serializeEdge);
-
-    const canvasData = {
-      nodes: serializedNodes,
-      edges: serializedEdges,
-      timestamp: Date.now()
+    return {
+        id: node.id,
+        type: node.type,
+        position: {
+            x: node.position.x,
+            y: node.position.y
+        },
+        data: {
+            // Copy all existing data properties
+            ...node.data,
+            // Ensure critical properties have fallbacks
+            label: node.data?.label || '',
+            text: node.data?.text || '',
+            results: node.data?.results || [],
+            streamingResult: node.data?.streamingResult || null
+        },
+        // Include these properties if they exist
+        ...(node.draggable !== undefined && { draggable: node.draggable }),
+        ...(node.selectable !== undefined && { selectable: node.selectable }),
+        ...(node.connectable !== undefined && { connectable: node.connectable })
     };
-
-    await saveToStore(CANVAS_STORE, name, canvasData);
-  } catch (error) {
-    console.error('Error saving canvas:', error);
-    alert('Error saving canvas: ' + error.message);
-  }
 }
 
-async function saveCurrentCanvas() {
-  const firstTextNode = $nodes.find(node => 
-    node.type === 'text' && 
-    node.data?.text?.trim()
-  );
-  
-  let defaultName = firstTextNode 
-    ? firstTextNode.data.text.slice(0, 30) + (firstTextNode.data.text.length > 30 ? '...' : '')
-    : `Canvas ${new Date().toLocaleString()}`;
 
-  let uniqueName = defaultName;
-  let counter = 1;
-  while (savedCanvases.includes(uniqueName)) {
-    uniqueName = `${defaultName} (${counter})`;
-    counter++;
-  }
-
-  try {
-    const serializedNodes = $nodes
-      .filter(validateNodeStructure)
-      .map(serializeNode);
-      
-    const serializedEdges = $edges
-      .filter(validateEdgeStructure)
-      .map(serializeEdge);
-
-    const canvasData = {
-      nodes: serializedNodes,
-      edges: serializedEdges,
-      timestamp: Date.now()
+type SerializedNode = {
+    id: string;
+    type: string;
+    position: {
+        x: number;
+        y: number;
     };
-
-    await saveToStore(CANVAS_STORE, uniqueName, canvasData);
-    savedCanvases = [...savedCanvases, uniqueName];
-    await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
-    currentCanvasName = uniqueName;
-  } catch (error) {
-    console.error('Error saving canvas:', error);
-    alert('Error saving canvas: ' + error.message);
-  }
-}
-
-
+    data: {
+        label: string;
+        text?: string;
+        width?: number;
+        height?: number;
+        // Add other data properties as needed
+    };
+};
 
 async function loadCanvas(name: string) {
-  if (currentCanvasName) {
-    await performAutoSave();
+    console.log('[Canvas Load] Starting load for canvas:', name);
+    
+    if (currentCanvasName) {
+        console.log('[Canvas Load] Saving current canvas before loading new one:', currentCanvasName);
+        await saveCanvas(currentCanvasName);
+    }
+
+    try {
+        const canvasData = await getFromStore(CANVAS_STORE, name);
+        
+        if (!canvasData) {
+            console.error('[Canvas Load] No canvas data found:', name);
+            alert('Error: No canvas data found');
+            return;
+        }
+
+        currentCanvasName = name;
+        
+        dispatch('canvasload', {
+            nodes: canvasData.nodes,
+            edges: canvasData.edges
+        });
+        
+        console.log('[Canvas Load] Canvas load completed');
+    } catch (error) {
+        console.error('[Canvas Load] Error loading canvas:', error);
+        alert('Error loading canvas');
+    }
+}
+
+
+
+
+  function serializeEdge(edge) {
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: edge.type
+    };
   }
 
-  try {
-    const canvasData = await getFromStore(CANVAS_STORE, name);
+  async function saveCanvas(name: string) {
+    if (!name) return;
+    
+    console.log('[Canvas Save] Saving canvas:', name);
+    
+    try {
+        const canvasData = {
+            nodes: $nodes,
+            edges: $edges,
+            timestamp: Date.now()
+        };
 
-
-      if (!canvasData || !canvasData.nodes || !canvasData.edges) {
-        console.error('Invalid canvas data structure:', canvasData);
-        alert('Error: Invalid canvas data structure');
-        return;
-      }
-
-      const validNodes = Array.isArray(canvasData.nodes) 
-        ? canvasData.nodes.filter(validateNodeStructure)
-        : Object.values(canvasData.nodes).filter(validateNodeStructure);
-
-      const validEdges = Array.isArray(canvasData.edges)
-        ? canvasData.edges.filter(validateEdgeStructure)
-        : Object.values(canvasData.edges).filter(validateEdgeStructure);
-
-      if (validNodes.length === 0) {
-        console.error('No valid nodes found in canvas data');
-        alert('Error: No valid nodes found in canvas data');
-        return;
-      }
-
-      currentCanvasName = name;
-      dispatch('load', {
-        nodes: validNodes,
-        edges: validEdges
-      });
-      setTimeout(() => {
-        dispatch('fitview');
-      }, 50);
+        await saveToStore(CANVAS_STORE, name, canvasData);
+        console.log('[Canvas Save] Successfully saved canvas:', name);
     } catch (error) {
-      console.error('Error loading canvas:', error);
-      alert('Error loading canvas');
+        // Ignore the function cloning error since it doesn't affect functionality
+        if (!error.toString().includes('could not be cloned')) {
+            console.error('[Canvas Save] Error saving canvas:', error);
+            alert('Error saving canvas: ' + error.message);
+        }
+    }
+}
+
+async function createNewCanvas() {
+    if (currentCanvasName) {
+        await saveCanvas(currentCanvasName);
+    }
+    
+    let counter = 1;
+    let newName = `New Canvas ${counter}`;
+    while (savedCanvases.includes(newName)) {
+        counter++;
+        newName = `New Canvas ${counter}`;
+    }
+    
+    const canvasData = {
+        nodes: [],
+        edges: [],
+        timestamp: Date.now()
+    };
+    
+    await saveToStore(CANVAS_STORE, newName, canvasData);
+    savedCanvases = [...savedCanvases, newName];
+    await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
+    
+    currentCanvasName = newName;
+    dispatch('canvasload', {
+        nodes: [],
+        edges: []
+    });
+}
+
+  async function duplicateCanvas(name: string) {
+    try {
+      const canvasData = await getFromStore(CANVAS_STORE, name);
+      
+      let counter = 1;
+      let newName = `${name} (Copy)`;
+      while (savedCanvases.includes(newName)) {
+        counter++;
+        newName = `${name} (Copy ${counter})`;
+      }
+      
+      await saveToStore(CANVAS_STORE, newName, {
+        ...canvasData,
+        timestamp: Date.now()
+      });
+      
+      savedCanvases = [...savedCanvases, newName];
+      await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
+      
+      await loadCanvas(newName);
+    } catch (error) {
+      console.error('Error duplicating canvas:', error);
+      alert('Error duplicating canvas');
     }
   }
 
@@ -393,6 +351,7 @@ async function loadCanvas(name: string) {
       
       if (currentCanvasName === name) {
         currentCanvasName = '';
+        dispatch('load', { nodes: [], edges: [] });
       }
     } catch (error) {
       console.error('Error deleting canvas:', error);
@@ -400,20 +359,6 @@ async function loadCanvas(name: string) {
     }
   }
 
-  async function createNewCanvas() {
-  if (currentCanvasName) {
-    await performAutoSave();
-  }
-  currentCanvasName = '';
-  dispatch('load', {
-    nodes: [],
-    edges: []
-  });
-  setTimeout(() => {
-    dispatch('fitview');
-  }, 50);
-}
-  
   async function exportCanvases() {
     try {
       const exportData = {
@@ -488,21 +433,21 @@ async function loadCanvas(name: string) {
 
 <div class="panel" class:collapsed={!isPaneVisible}>
   <div 
-  class="panel-edge"
-  on:mouseenter={() => showToggle = true}
-  on:mouseleave={() => showToggle = false}
-  on:click={togglePane}
->
-  {#if showToggle}
-    <div class="toggle-indicator">
-      {#if isPaneVisible}
-        <ChevronLeft size={16} />
-      {:else}
-        <ChevronRight size={16} />
-      {/if}
-    </div>
-  {/if}
-</div>
+    class="panel-edge"
+    on:mouseenter={() => showToggle = true}
+    on:mouseleave={() => showToggle = false}
+    on:click={togglePane}
+  >
+    {#if showToggle}
+      <div class="toggle-indicator">
+        {#if isPaneVisible}
+          <ChevronLeft size={16} />
+        {:else}
+          <ChevronRight size={16} />
+        {/if}
+      </div>
+    {/if}
+  </div>
   
   {#if isPaneVisible}
     <div class="main-title">
@@ -512,13 +457,12 @@ async function loadCanvas(name: string) {
       </button>
     </div>
 
-    <div class="action-button-container">
-      <button class="save-as-button" on:click={saveCurrentCanvas}>
-        <Save size={18} />
-        Save As
-      </button>
-    </div>
     <div class="canvas-list">
+      <button class="add-button" on:click={createNewCanvas}>
+        <Plus size={18} />
+        New Canvas
+      </button>
+
       {#if savedCanvases.length === 0}
         <div class="empty-state">No saved canvases</div>
       {:else}
@@ -528,29 +472,34 @@ async function loadCanvas(name: string) {
               {name}
             </span>
             <div class="canvas-actions">
-              <button class="action-btn" on:click={() => renameCanvas(name)}>
+              <button 
+                class="action-btn" 
+                title="Edit name"
+                on:click={() => renameCanvas(name)}
+              >
                 <Edit2 size={14} />
               </button>
-              <button class="delete-btn" on:click={() => deleteCanvas(name)}>
+              <button 
+                class="action-btn" 
+                title="Duplicate"
+                on:click={() => duplicateCanvas(name)}
+              >
+                <Copy size={14} />
+              </button>
+
+              <button 
+                class="delete-btn" 
+                title="Delete"
+                on:click={() => deleteCanvas(name)}
+              >
                 <Trash2 size={14} />
               </button>
             </div>
           </div>
         {/each}
       {/if}
-
-      <button class="add-button" on:click={createNewCanvas}>
-        <Plus size={18} />
-        Add new canvas
-      </button>
-      <div class="save-status">
-        {#if $saveStatus.saving}
-          <div class="status-text">Saving...</div>
-        {:else if $saveStatus.lastSaved}
-          <div class="status-text">Saved {$saveStatus.lastSaved.toLocaleTimeString()}</div>
-        {/if}
-      </div>
     </div>
+
     <div class="import-export-buttons">
       <button class="import-button" on:click={importCanvases}>
         <Upload size={18} />
@@ -587,39 +536,29 @@ async function loadCanvas(name: string) {
             </li>
           </ul>
 
-
-          <p><strong>Fancy templates:</strong> Grab a template, hit the zap button, and watch the magic happen. Use the loop feature to iterate your ideas into perfection (or until you run out of tokens)</p>
-
-          <h3>👨‍💻 Behind the Scenes</h3>
-          <p>Created by <a href="https://www.linkedin.com/in/angeloromasanta/"> Angelo</a>, who somehow is convinced that Claude is programming. No prior experience required - just a lot of coffee and questionable life choices! 🎯</p>
-
           <button class="close-button" on:click={() => showInfoModal = false}>Got it!</button>
         </div>
       </div>
     {/if}
-
-
   {/if}
 </div>
 
 <style>
-   .panel {
-  position: absolute;
-  left: 0;
-  top: 0;
-  /* Use dynamic viewport height and account for safe area */
-  height: 100dvh;
-  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  width: 250px;
-  background: #f8faff;
-  border-right: 1px solid #ccc;
-  display: flex;
-  flex-direction: column;
-  z-index: 5;
-  transition: width 0.3s ease;
-  font-size: 12px;
-}
-
+  .panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100dvh;
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    width: 250px;
+    background: #f8faff;
+    border-right: 1px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    z-index: 5;
+    transition: width 0.3s ease;
+    font-size: 12px;
+  }
 
   .panel.collapsed {
     width: auto;
@@ -627,17 +566,17 @@ async function loadCanvas(name: string) {
 
   .panel-edge {
     position: absolute;
-    right: -6px; /* Made thicker */
+    right: -6px;
     top: 0;
     bottom: 0;
-    width: 6px; /* Made thicker */
+    width: 6px;
     cursor: pointer;
     background: transparent;
     transition: all 0.2s ease;
   }
 
   .panel-edge:hover {
-    background: rgba(0, 0, 0, 0.25); /* Darker hover state */
+    background: rgba(0, 0, 0, 0.25);
   }
 
   .toggle-indicator {
@@ -652,36 +591,8 @@ async function loadCanvas(name: string) {
     pointer-events: none;
   }
 
-  /* Update toggle indicator color on hover */
   .panel-edge:hover .toggle-indicator {
-    color: #fff; /* Make the chevron white on hover */
-  }
-
-
- 
-
-  .toggle-button {
-    position: absolute;
-    right: -18px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: #f8faff;
-    border: 1px solid #ccc;
-    border-left: none;
-    border-radius: 0 2px 2px 0;
-    padding: 2px;
-    cursor: pointer;
-    height: 40px;
-    width: 18px;
-    color: #666;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .toggle-button:hover {
-    background: #fff;
-    color: #333;
+    color: #fff;
   }
 
   .main-title {
@@ -689,30 +600,18 @@ async function loadCanvas(name: string) {
     font-size: 24px;
     font-weight: bold;
     border-bottom: 1px solid #eee;
-  }
-
-  .save-buttons {
     display: flex;
-    gap: 4px;
-    margin: 8px;
+    align-items: center;
   }
 
-  .save-as-button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px;
-  background: #dde8ed;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  color: #333;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background-color 0.2s;
-}
-
+  .canvas-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
 
   .add-button {
     display: flex;
@@ -731,34 +630,9 @@ async function loadCanvas(name: string) {
     transition: background-color 0.2s;
   }
 
- 
-
-  
-  .save-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .save-button:hover:not(:disabled), .save-as-button:hover, .add-button:hover {
+  .add-button:hover {
     background: #c8d8e0;
   }
-
-
-
-  .add-button:hover {
-    background: #d1ffd1;
-  }
-
-  .canvas-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  /* Add padding at bottom to ensure last items are visible */
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
-}
-
 
   .canvas-item {
     display: flex;
@@ -798,6 +672,7 @@ async function loadCanvas(name: string) {
     display: flex;
     gap: 4px;
     opacity: 0.6;
+    transition: opacity 0.2s;
   }
 
   .canvas-item:hover .canvas-actions {
@@ -811,30 +686,20 @@ async function loadCanvas(name: string) {
     padding: 2px;
     display: flex;
     align-items: center;
+    border-radius: 3px;
+    transition: all 0.2s;
   }
 
   .action-btn:hover {
+    background: rgba(76, 175, 80, 0.1);
     color: #4CAF50;
   }
 
   .delete-btn:hover {
+    background: rgba(255, 65, 54, 0.1);
     color: #ff4136;
   }
-  .action-button-container {
-      padding: 8px;
-    }
 
-    .save-status {
-      padding: 0 8px;
-      font-size: 11px;
-      color: #666;
-      text-align: center;
-      height: 16px;
-    }
-
-    .status-text {
-      opacity: 0.8;
-    }
   .empty-state {
     color: #666;
     text-align: center;
@@ -844,16 +709,17 @@ async function loadCanvas(name: string) {
   }
 
   .import-export-buttons {
-  padding: 8px;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
-  display: flex;
-  gap: 8px;
-  border-top: 1px solid #eee;
-  background: #f8faff; /* Match panel background */
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-}
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid #eee;
+    background: #f8faff;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+  }
+
   .import-button, .export-button {
     flex: 1;
     display: flex;
@@ -877,6 +743,7 @@ async function loadCanvas(name: string) {
   .export-button:hover {
     background: #d1ffe6;
   }
+
   .info-button {
     background: none;
     border: none;
@@ -902,7 +769,7 @@ async function loadCanvas(name: string) {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999; /* Increased z-index to be above all other elements */
+    z-index: 9999;
   }
 
   .modal-content {
@@ -914,9 +781,8 @@ async function loadCanvas(name: string) {
     overflow-y: auto;
     position: relative;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 10000; /* Even higher z-index than the overlay */
+    z-index: 10000;
   }
-
 
   .modal-content h2 {
     margin-top: 0;
@@ -951,14 +817,4 @@ async function loadCanvas(name: string) {
   .close-button:hover {
     background: #c8d8e0;
   }
-
-  .main-title {
-    padding: 15px;
-    font-size: 24px;
-    font-weight: bold;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    align-items: center;
-  }
-
 </style>

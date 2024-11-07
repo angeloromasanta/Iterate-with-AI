@@ -31,6 +31,94 @@
   
   import { onMount } from 'svelte';
 
+
+  function handleCanvasLoad(event) {
+    console.log('[Canvas Load Handler] Starting canvas load handler');
+    
+    isNodeResizing.set(false);
+    
+    const { nodes: loadedNodes, edges: loadedEdges } = event.detail;
+    
+    // Create completely fresh nodes without any size-related properties
+    const cleanedNodes = loadedNodes.map((node, index) => {
+        // Extract only the essential data we need
+        const cleanNode = {
+            id: node.id,
+            type: node.type,
+            position: {
+                x: node.position.x,
+                y: node.position.y
+            },
+            data: {
+                label: node.data?.label || '',
+                text: node.data?.text || '',
+                results: node.data?.results || [],
+                streamingResult: null,
+                // Explicitly remove any size-related properties
+                width: undefined,
+                height: undefined
+            },
+            // Reset all state properties
+            selected: false,
+            dragging: false,
+            class: '',
+            // Ensure measured is undefined
+            measured: undefined
+        };
+
+        if (index === 0) {
+            console.log('[Canvas Load Handler] First node cleaning:', {
+                original: {
+                    width: node.data?.width,
+                    height: node.data?.height,
+                    measured: node.measured
+                },
+                cleaned: {
+                    width: cleanNode.data?.width,
+                    height: cleanNode.data?.height,
+                    measured: cleanNode.measured
+                }
+            });
+        }
+
+        return cleanNode;
+    });
+
+    // Set nodes and force immediate update
+    nodes.set(cleanedNodes);
+    
+    // Create edges with fresh properties
+    const newEdges = loadedEdges.map(edge => createEdge({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type || 'custom',
+        animated: false,  // Reset animation state
+        style: edge.style,
+        data: {
+            ...edge.data,
+            onPlay: () => runConnectedNodes(edge.id),
+            onDelete: (id: string) => deleteEdge(id),
+            updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
+        }
+    }));
+    
+    edges.set(newEdges);
+    updateCyclicEdges();
+
+    // Force a complete re-render with size recalculation
+    requestAnimationFrame(() => {
+        console.log('[Canvas Load Handler] Triggering size recalculation');
+        nodes.update(n => {
+            return n.map(node => ({
+                ...node,
+                // Force React Flow to recalculate sizes
+                position: { ...node.position }
+            }));
+        });
+    });
+}
+
   function saveStateToLocalStorage() {
     const state = {
       nodes: get(nodes),
@@ -1209,22 +1297,32 @@ function onPaneClick(event) {
   }
 
   function handleImport(event) {
-  console.log('Handling import with data:', event.detail);
+  console.log('[Import] Starting import with data:', event.detail);
   const importedData = event.detail;
   
   if (!importedData || !Array.isArray(importedData.nodes) || !Array.isArray(importedData.edges)) {
-    console.error('Invalid import data structure:', importedData);
+    console.error('[Import] Invalid import data structure:', importedData);
     return;
   }
 
   try {
-    const allNodesData = importedData.nodes.map(n => ({ 
+    // Reset the node resizing state
+    isNodeResizing.set(false);
+    console.log('[Import] Reset isNodeResizing state');
+
+    // Clean measured properties from imported nodes
+    const cleanedNodes = importedData.nodes.map(node => {
+      const { measured, ...cleanNode } = node;
+      return cleanNode;
+    });
+
+    const allNodesData = cleanedNodes.map(n => ({ 
       id: n.id, 
       label: n.data.label, 
       text: n.data.text 
     }));
 
-    const nodesWithAllNodes = importedData.nodes.map(node => ({
+    const nodesWithAllNodes = cleanedNodes.map(node => ({
       ...node,
       data: {
         ...node.data,
@@ -1233,6 +1331,7 @@ function onPaneClick(event) {
     }));
 
     nodes.set(nodesWithAllNodes);
+    console.log('[Import] Set nodes:', nodesWithAllNodes.length);
 
     // Recreate edges with proper callback functions
     const importedEdges = importedData.edges.map(edge => createEdge({
@@ -1251,9 +1350,11 @@ function onPaneClick(event) {
     }));
 
     edges.set(importedEdges);
+    console.log('[Import] Set edges:', importedEdges.length);
+    
     updateCyclicEdges();
   } catch (error) {
-    console.error('Error processing import data:', error);
+    console.error('[Import] Error processing import data:', error);
     alert('Error importing canvas data');
   }
 }
@@ -1328,7 +1429,7 @@ function onPaneClick(event) {
   <LocalCanvasPanel 
     nodes={nodes} 
     edges={edges} 
-    on:load={handleImport}
+    on:canvasload={handleCanvasLoad}
     on:clear={handleClear}
     on:fitview={() => fitView({ padding: 0.2 })}
   />
