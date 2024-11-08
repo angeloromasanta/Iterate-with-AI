@@ -22,7 +22,6 @@
   import ResultNode from './ResultNode.svelte';
   import CustomEdge from './CustomEdge.svelte';
   import LocalCanvasPanel from './LocalCanvasPanel.svelte';
-  import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
   import { selectedModel, isNodeResizing, secondaryModels, isProcessing, shouldStop, startProcessing, stopProcessing, resetProcessing, activeProcesses } from './stores';
   import { Zap, Square } from 'lucide-svelte';
@@ -37,62 +36,34 @@
     
     const { nodes: loadedNodes, edges: loadedEdges } = event.detail;
     
-    // Create completely fresh nodes without any size-related properties
-    const cleanedNodes = loadedNodes.map((node, index) => {
-        // Extract only the essential data we need
-        const cleanNode = {
-            id: node.id,
-            type: node.type,
-            position: {
-                x: node.position.x,
-                y: node.position.y
-            },
-            data: {
-                label: node.data?.label || '',
-                text: node.data?.text || '',
-                results: node.data?.results || [],
-                streamingResult: null,
-                // Explicitly remove any size-related properties
-                width: undefined,
-                height: undefined
-            },
-            // Reset all state properties
-            selected: false,
-            dragging: false,
-            class: '',
-            // Ensure measured is undefined
-            measured: undefined
-        };
+    // Create clean nodes
+    const cleanedNodes = loadedNodes.map(node => ({
+        id: node.id,
+        type: node.type,
+        position: {
+            x: node.position.x,
+            y: node.position.y
+        },
+        data: {
+            label: node.data?.label || '',
+            text: node.data?.text || '',
+            results: node.data?.results || [],
+            streamingResult: null
+        },
+        selected: false,
+        dragging: false,
+        class: ''
+    }));
 
-        if (index === 0) {
-            console.log('[Canvas Load Handler] First node cleaning:', {
-                original: {
-                    width: node.data?.width,
-                    height: node.data?.height,
-                    measured: node.measured
-                },
-                cleaned: {
-                    width: cleanNode.data?.width,
-                    height: cleanNode.data?.height,
-                    measured: cleanNode.measured
-                }
-            });
-        }
-
-        return cleanNode;
-    });
-
-    // Set nodes and force immediate update
+    // Set nodes
     nodes.set(cleanedNodes);
     
-    // Create edges with fresh properties
+    // Create edges with fresh callbacks
     const newEdges = loadedEdges.map(edge => createEdge({
         id: edge.id,
         source: edge.source,
         target: edge.target,
         type: edge.type || 'custom',
-        animated: false,  // Reset animation state
-        style: edge.style,
         data: {
             ...edge.data,
             onPlay: () => runConnectedNodes(edge.id),
@@ -104,58 +75,14 @@
     edges.set(newEdges);
     updateCyclicEdges();
 
-    // Force a complete re-render with size recalculation
+    // Force a complete re-render
     requestAnimationFrame(() => {
-        console.log('[Canvas Load Handler] Triggering size recalculation');
-        nodes.update(n => {
-            return n.map(node => ({
-                ...node,
-                // Force React Flow to recalculate sizes
-                position: { ...node.position }
-            }));
-        });
+        nodes.update(n => [...n]);
+        edges.update(e => [...e]);
     });
 }
 
-  function saveStateToLocalStorage() {
-    const state = {
-      nodes: get(nodes),
-      edges: get(edges)
-    };
-    localStorage.setItem('canvasState', JSON.stringify(state));
-  }
 
-  function loadStateFromLocalStorage() {
-    const savedState = localStorage.getItem('canvasState');
-    if (savedState) {
-      const state = JSON.parse(savedState);
-      nodes.set(state.nodes);
-
-      const loadedEdges = state.edges.map(edge => createEdge({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.type,
-        animated: edge.animated,
-        style: edge.style,
-        data: {
-          ...edge.data,
-          onPlay: () => runConnectedNodes(edge.id),
-          onDelete: (id: string) => deleteEdge(id),
-          updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
-        }
-      }));
-
-      edges.set(loadedEdges);
-      updateCyclicEdges();
-
-      // Force a re-render of the SvelteFlow component
-      nodes.update(n => [...n]);
-      edges.update(e => [...e]);
-    }
-  }
-
-  let lastResizeEndTime = 0;
 
 // Add this in your onMount:
 onMount(() => {
@@ -1126,113 +1053,7 @@ function onPaneClick(event) {
   }
 
 
-  async function processNode(nodeId) {
-    const node = $nodes.find(n => n.id === nodeId);
-
-    if (node.type === 'text') {
-      const connectedResultNodes = $edges
-        .filter(edge => edge.source === node.id)
-        .map(edge => $nodes.find(n => n.id === edge.target))
-        .filter(n => n && n.type === 'result');
-
-      for (const resultNode of connectedResultNodes) {
-        // Update node classes to show processing
-        nodes.update(n => n.map(n => ({
-          ...n,
-          class: n.id === node.id || n.id === resultNode.id
-            ? `${n.class || ''} processing`.trim()
-            : n.class
-        })));
-
-        let processedText = node.data.text;
-        const referencedNodes = [];
-
-        // Replace references with actual values and collect referenced nodes
-        const regex = /{([^}]+)}/g;
-        processedText = processedText.replace(regex, (match, label) => { //Property 'replace' does not exist on type 'unknown'.
-          const referencedNode = $nodes.find(n => n.data.label === label);
-          if (referencedNode) {
-            referencedNodes.push(referencedNode);
-            if (referencedNode.type === 'result' && referencedNode.data.results) {
-              return Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-                ? referencedNode.data.results[referencedNode.data.results.length - 1]
-                : match;
-            } else if (referencedNode.type === 'text') {
-              return referencedNode.data.text || match;
-            }
-          }
-          return match;
-        });
-
-        // Update referenced nodes to show processing
-        nodes.update(n => n.map(n => ({
-          ...n,
-          class: referencedNodes.some(rn => rn.id === n.id)
-            ? `${n.class || ''} processing referenced`.trim()
-            : n.class
-        })));
-
-        // Animate the connected edge
-        edges.update(e => e.map(edge => ({
-          ...edge,
-          animated: edge.source === node.id && edge.target === resultNode.id,
-          class: edge.source === node.id && edge.target === resultNode.id
-            ? 'processing-edge'
-            : edge.class
-        })));
-
-        // Delay to allow for visual update
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Get response from LLM
-        const response = await getLLMResponse(processedText); //Expected 2 arguments, but got 1.
-
-        // Update the result node with the response
-        nodes.update(n => n.map(n => {
-          if (n.id === resultNode.id) {
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                results: [...(n.data.results || []), response] //Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
-              }
-            };
-          }
-          return n;
-        }));
-
-        // Reset processing classes and animations
-        nodes.update(n => n.map(n => ({
-          ...n,
-          class: (n.class || '').replace('processing', '').replace('referenced', '').trim()
-        })));
-
-        edges.update(e => e.map(edge => ({
-          ...edge,
-          animated: false,
-          class: (edge.class || '').replace('processing-edge', '').trim()
-        })));
-
-        // Delay to allow for visual update
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    } else if (node.type === 'result') {
-      // If it's a result node, we don't need to process it,
-      // but we might want to update its visual state
-      nodes.update(n => n.map(n => ({
-        ...n,
-        class: n.id === node.id
-          ? `${n.class || ''} visited`.trim()
-          : n.class
-      })));
-
-      // Delay to allow for visual update
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-  }
-
-
+ 
 
   
   function detectCycleEndEdges(nodes, edges) {
@@ -1301,17 +1122,6 @@ function onPaneClick(event) {
   }
 
 
-  
-  function handleConnect(event) {
-    const params = event.detail;
-    const newEdge = createEdge({
-      id: `e${params.source}-${params.target}`,
-      source: params.source,
-      target: params.target
-    });
-    edges.update(eds => [...eds, newEdge]);
-  }
-
   function handleEdgeCreate(connection: Connection): Edge { //Cannot find name 'Connection'.
     const newEdge = createEdge({
       id: `e${connection.source}-${connection.target}`,
@@ -1322,123 +1132,31 @@ function onPaneClick(event) {
     return newEdge;
   }
 
-  function handleImport(event) {
-  console.log('[Import] Starting import with data:', event.detail);
-  const importedData = event.detail;
-  
-  if (!importedData || !Array.isArray(importedData.nodes) || !Array.isArray(importedData.edges)) {
-    console.error('[Import] Invalid import data structure:', importedData);
-    return;
-  }
-
-  try {
-    // Reset the node resizing state
-    isNodeResizing.set(false);
-    console.log('[Import] Reset isNodeResizing state');
-
-    // Clean measured properties from imported nodes
-    const cleanedNodes = importedData.nodes.map(node => {
-      const { measured, ...cleanNode } = node;
-      return cleanNode;
-    });
-
-    const allNodesData = cleanedNodes.map(n => ({ 
-      id: n.id, 
-      label: n.data.label, 
-      text: n.data.text 
-    }));
-
-    const nodesWithAllNodes = cleanedNodes.map(node => ({
-      ...node,
-      data: {
-        ...node.data,
-        allNodes: allNodesData
-      }
-    }));
-
-    nodes.set(nodesWithAllNodes);
-    console.log('[Import] Set nodes:', nodesWithAllNodes.length);
-
-    // Recreate edges with proper callback functions
-    const importedEdges = importedData.edges.map(edge => createEdge({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      type: edge.type,
-      animated: edge.animated,
-      style: edge.style,
-      data: {
-        ...edge.data,
-        onPlay: () => runConnectedNodes(edge.id),
-        onDelete: (id: string) => deleteEdge(id),
-        updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
-      }
-    }));
-
-    edges.set(importedEdges);
-    console.log('[Import] Set edges:', importedEdges.length);
-    
-    updateCyclicEdges();
-  } catch (error) {
-    console.error('[Import] Error processing import data:', error);
-    alert('Error importing canvas data');
-  }
-}
-  
+ 
   // Function to clear the graph
   function handleClear() {
-  nodes.set([]);
-  edges.set([]);
-  updateCyclicEdges();
-  saveStateToLocalStorage();
-  
-  // Reset both counters
-  promptCounter.set(1);
-  resultCounter.set(1);
+    // Reset the node resizing state
+    isNodeResizing.set(false);
+    
+    // Clear all nodes and edges
+    nodes.set([]);
+    edges.set([]);
+    
+    // Reset cyclic edges
+    updateCyclicEdges();
+    
+    // Reset node counters
+    promptCounter.set(1);
+    resultCounter.set(1);
+    
+    // Force a re-render
+    requestAnimationFrame(() => {
+        nodes.update(n => [...n]);
+        edges.update(e => [...e]);
+    });
 }
 
-  async function handleLoadTemplate(event) {
-    const templateFile = event.detail;
-    try {
-      const templateData = await loadTemplate(templateFile);
-      nodes.set(templateData.nodes);
-
-      // Recreate edges with proper callback functions
-      const loadedEdges = templateData.edges.map(edge => createEdge({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.type,
-        animated: edge.animated,
-        style: edge.style,
-        data: {
-          ...edge.data,
-          onPlay: () => runConnectedNodes(edge.id),
-          onDelete: (id: string) => deleteEdge(id),
-          updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
-        }
-      }));
-
-      edges.set(loadedEdges);
-      updateCyclicEdges();
-
-      // Reset the new node counter after loading a template
-      nextNewNodeNumber.set(1);
-
-      // Force a re-render of the SvelteFlow component
-      nodes.update(n => [...n]);
-      edges.update(e => [...e]);
-
-      // Fit view after loading template
-      setTimeout(() => {
-        fitView({ padding: 0.2 });
-      }, 0);
-
-    } catch (error) {
-      console.error('Error loading template:', error);
-      alert('Failed to load template');
-    }
-  }
+  
 
   function handleModelChange(event: CustomEvent<string>) {
     selectedModel.set(event.detail);

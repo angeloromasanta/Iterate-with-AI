@@ -1,3 +1,4 @@
+<!-- LocalCanvasPanel.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { writable, derived } from 'svelte/store';
@@ -112,6 +113,9 @@ let lastSavedTime: string = '';
     }
   }
 
+
+
+
   async function loadSavedCanvasList() {
     try {
       const canvasList = await getFromStore(METADATA_STORE, 'canvasList');
@@ -126,33 +130,6 @@ let lastSavedTime: string = '';
   }
 
   
-  function validateNodeStructure(node) {
-    if (!node || typeof node !== 'object') return false;
-    
-    // Check required top-level properties
-    if (!('id' in node && 'type' in node && 'position' in node && 'data' in node)) {
-        return false;
-    }
-    
-    // Validate position
-    if (typeof node.position !== 'object' || 
-        !('x' in node.position) || 
-        !('y' in node.position)) {
-        return false;
-    }
-    
-    // Validate data object
-    if (typeof node.data !== 'object') {
-        return false;
-    }
-    
-    return true;
-}
-  function validateEdgeStructure(edge) {
-    if (!edge || typeof edge !== 'object') return false;
-    return ['id', 'source', 'target'].every(field => field in edge);
-  }
-
   async function saveToStore(storeName: string, key: string, value: any): Promise<void> {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(storeName, 'readwrite');
@@ -186,30 +163,7 @@ let lastSavedTime: string = '';
     });
   }
 
-  function serializeNode(node) {
-    return {
-        id: node.id,
-        type: node.type,
-        position: {
-            x: node.position.x,
-            y: node.position.y
-        },
-        data: {
-            // Copy all existing data properties
-            ...node.data,
-            // Ensure critical properties have fallbacks
-            label: node.data?.label || '',
-            text: node.data?.text || '',
-            results: node.data?.results || [],
-            streamingResult: node.data?.streamingResult || null
-        },
-        // Include these properties if they exist
-        ...(node.draggable !== undefined && { draggable: node.draggable }),
-        ...(node.selectable !== undefined && { selectable: node.selectable }),
-        ...(node.connectable !== undefined && { connectable: node.connectable })
-    };
-}
-
+ 
 
 type SerializedNode = {
     id: string;
@@ -227,35 +181,93 @@ type SerializedNode = {
     };
 };
 
+function simplifyCanvasData(nodes, edges) {
+    const simplifyNode = (node) => ({
+        id: node.id,
+        type: node.type,
+        data: { 
+            label: node.data.label,
+            text: node.data.text,
+            results: node.type === 'result' ? node.data.results : undefined
+        },
+        position: {
+            x: Math.round(node.position.x / 10) * 10,
+            y: Math.round(node.position.y / 10) * 10
+        }
+    });
+
+    const simplifyEdge = (edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: edge.type,
+        data: { 
+            loopCount: edge.data?.loopCount 
+        }
+    });
+
+    return {
+        nodes: nodes.map(simplifyNode),
+        edges: edges.map(simplifyEdge),
+        timestamp: Date.now()
+    };
+}
+
+// Update the saveCanvas function
+async function saveCanvas(name: string) {
+    if (!name) {
+        console.log('[Canvas Save] No canvas name provided');
+        return;
+    }
+    
+    try {
+        const canvasData = simplifyCanvasData($nodes, $edges);
+        await saveToStore(CANVAS_STORE, name, canvasData);
+        lastSavedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        console.log('[Canvas Save] Successfully saved canvas:', name);
+    } catch (error) {
+        console.error('[Canvas Save] Error saving canvas:', error);
+    }
+}
+
+// Update the loadCanvas function
 async function loadCanvas(name: string) {
     console.log('[Canvas Load] Starting load for canvas:', name);
     
     try {
-        // Save current canvas before loading new one
         if (currentCanvasName) {
-            console.log('[Canvas Load] Saving current canvas before loading new one:', currentCanvasName);
             await saveCanvas(currentCanvasName);
         }
 
         const canvasData = await getFromStore(CANVAS_STORE, name);
-        if (canvasData?.timestamp) {
-        lastSavedTime = new Date(canvasData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
         if (!canvasData) {
             console.error('[Canvas Load] No canvas data found:', name);
-            alert('Error: No canvas data found');
             return;
         }
 
-        // Set the name before dispatching to ensure it's available during any subsequent operations
+        // Update timestamp display
+        if (canvasData.timestamp) {
+            lastSavedTime = new Date(canvasData.timestamp).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+
         currentCanvasName = name;
         
-        dispatch('canvasload', {
-            nodes: canvasData.nodes,
+        // Clean the data before dispatching
+        const cleanedData = {
+            nodes: canvasData.nodes.map(node => ({
+                ...node,
+                measured: undefined,
+                dragging: false,
+                selected: false,
+                class: ''
+            })),
             edges: canvasData.edges
-        });
-        
+        };
+
+        dispatch('canvasload', cleanedData);
         console.log('[Canvas Load] Canvas load completed');
     } catch (error) {
         console.error('[Canvas Load] Error loading canvas:', error);
@@ -266,70 +278,52 @@ async function loadCanvas(name: string) {
 
 
 
-  function serializeEdge(edge) {
-    return {
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      type: edge.type
-    };
-  }
-
-// Update the saveCanvas function
-async function saveCanvas(name: string) {
-    if (!name) {
-        console.log('[Canvas Save] No canvas name provided');
-        return;
-    }
-    
+  async function createNewCanvas() {
     try {
+        // Save current canvas if exists
+        if (currentCanvasName) {
+            await saveCanvas(currentCanvasName);
+        }
+        
+        // Generate new unique name
+        let counter = 1;
+        let newName = `New Canvas ${counter}`;
+        while (savedCanvases.includes(newName)) {
+            counter++;
+            newName = `New Canvas ${counter}`;
+        }
+        
+        // Create empty canvas data
         const canvasData = {
-            nodes: $nodes,
-            edges: $edges,
+            nodes: [],
+            edges: [],
             timestamp: Date.now()
         };
-
-        await saveToStore(CANVAS_STORE, name, canvasData);
+        
+        // Update stores
+        await saveToStore(CANVAS_STORE, newName, canvasData);
+        savedCanvases = [...savedCanvases, newName];
+        await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
+        
+        // Set current canvas name
+        currentCanvasName = newName;
+        
+        // Clear the canvas completely
+        dispatch('clear');
+        
+        // Force a clean canvas load
+        dispatch('canvasload', {
+            nodes: [],
+            edges: []
+        });
         
         // Update last saved time
         lastSavedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         
-        console.log('[Canvas Save] Successfully saved canvas:', name);
     } catch (error) {
-        if (!error.toString().includes('could not be cloned')) {
-            console.error('[Canvas Save] Error saving canvas:', error);
-            throw error;
-        }
+        console.error('Error creating new canvas:', error);
+        alert('Error creating new canvas');
     }
-}
-
-async function createNewCanvas() {
-    if (currentCanvasName) {
-        await saveCanvas(currentCanvasName);
-    }
-    
-    let counter = 1;
-    let newName = `New Canvas ${counter}`;
-    while (savedCanvases.includes(newName)) {
-        counter++;
-        newName = `New Canvas ${counter}`;
-    }
-    
-    const canvasData = {
-        nodes: [],
-        edges: [],
-        timestamp: Date.now()
-    };
-    
-    await saveToStore(CANVAS_STORE, newName, canvasData);
-    savedCanvases = [...savedCanvases, newName];
-    await saveToStore(METADATA_STORE, 'canvasList', savedCanvases);
-    
-    currentCanvasName = newName;
-    dispatch('canvasload', {
-        nodes: [],
-        edges: []
-    });
 }
 
   async function duplicateCanvas(name: string) {
