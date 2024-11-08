@@ -29,6 +29,8 @@
   import { onMount } from 'svelte';
 
 
+  let lastResizeEndTime =0;
+  
   function handleCanvasLoad(event) {
     console.log('[Canvas Load Handler] Starting canvas load handler');
     
@@ -36,8 +38,8 @@
     
     const { nodes: loadedNodes, edges: loadedEdges } = event.detail;
     
-    // Create clean nodes
-    const cleanedNodes = loadedNodes.map(node => ({
+    // Set nodes with clean data
+    nodes.set(loadedNodes.map(node => ({
         id: node.id,
         type: node.type,
         position: {
@@ -53,13 +55,10 @@
         selected: false,
         dragging: false,
         class: ''
-    }));
-
-    // Set nodes
-    nodes.set(cleanedNodes);
+    })));
     
-    // Create edges with fresh callbacks
-    const newEdges = loadedEdges.map(edge => createEdge({
+    // Set edges with fresh callbacks
+    edges.set(loadedEdges.map(edge => createEdge({
         id: edge.id,
         source: edge.source,
         target: edge.target,
@@ -70,18 +69,23 @@
             onDelete: (id: string) => deleteEdge(id),
             updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
         }
-    }));
+    })));
     
-    edges.set(newEdges);
     updateCyclicEdges();
 
-    // Force a complete re-render
+    // Schedule a render and view fit
     requestAnimationFrame(() => {
         nodes.update(n => [...n]);
         edges.update(e => [...e]);
+        
+        setTimeout(() => {
+            fitView({ 
+                padding: 0.2,
+                duration: 800
+            });
+        }, 100);
     });
 }
-
 
 
 // Add this in your onMount:

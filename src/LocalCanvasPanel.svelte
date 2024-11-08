@@ -34,7 +34,7 @@ $: {
 let showSaveIndicator = false;
 let saveIndicatorTimeout: NodeJS.Timeout;
 let lastSavedTime: string = '';
-
+let lastResizeEndTime =0;
   let savedCanvases = [];
   let isPaneVisible = true;
   let currentCanvasName = '';
@@ -165,22 +165,6 @@ let lastSavedTime: string = '';
 
  
 
-type SerializedNode = {
-    id: string;
-    type: string;
-    position: {
-        x: number;
-        y: number;
-    };
-    data: {
-        label: string;
-        text?: string;
-        width?: number;
-        height?: number;
-        // Add other data properties as needed
-    };
-};
-
 function simplifyCanvasData(nodes, edges) {
     const simplifyNode = (node) => ({
         id: node.id,
@@ -230,33 +214,34 @@ async function saveCanvas(name: string) {
     }
 }
 
-// Update the loadCanvas function
+
 async function loadCanvas(name: string) {
     console.log('[Canvas Load] Starting load for canvas:', name);
     
     try {
+        // Save current canvas if exists
         if (currentCanvasName) {
             await saveCanvas(currentCanvasName);
         }
 
+        // Load canvas data from storage
         const canvasData = await getFromStore(CANVAS_STORE, name);
         if (!canvasData) {
             console.error('[Canvas Load] No canvas data found:', name);
             return;
         }
 
-        // Update timestamp display
-        if (canvasData.timestamp) {
-            lastSavedTime = new Date(canvasData.timestamp).toLocaleTimeString([], { 
+        // Update current canvas and timestamp
+        currentCanvasName = name;
+        lastSavedTime = canvasData.timestamp 
+            ? new Date(canvasData.timestamp).toLocaleTimeString([], { 
                 hour: '2-digit', 
                 minute: '2-digit' 
-            });
-        }
+              })
+            : '';
 
-        currentCanvasName = name;
-        
-        // Clean the data before dispatching
-        const cleanedData = {
+        // Dispatch event to App.svelte with clean data
+        dispatch('canvasload', {
             nodes: canvasData.nodes.map(node => ({
                 ...node,
                 measured: undefined,
@@ -265,16 +250,14 @@ async function loadCanvas(name: string) {
                 class: ''
             })),
             edges: canvasData.edges
-        };
-
-        dispatch('canvasload', cleanedData);
+        });
+        
         console.log('[Canvas Load] Canvas load completed');
     } catch (error) {
         console.error('[Canvas Load] Error loading canvas:', error);
         alert('Error loading canvas');
     }
 }
-
 
 
 
