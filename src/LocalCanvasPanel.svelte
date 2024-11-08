@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import { writable } from 'svelte/store';
+  import { writable, derived } from 'svelte/store';
   import { defaultCanvases } from './defaultCanvases';
   import type { Node, Edge } from '@xyflow/svelte';
   import { Plus, Save, Trash2, ChevronLeft, ChevronRight, Edit2, Download, Upload, Info, Copy } from 'lucide-svelte';
@@ -10,7 +10,30 @@
   export let edges;
 
   const dispatch = createEventDispatcher();
-  
+  let autoSaveTimeout: NodeJS.Timeout;
+const canvasState = derived([nodes, edges], ([$nodes, $edges]) => ({ nodes: $nodes, edges: $edges }));
+
+// Subscribe to changes
+$: {
+    if (currentCanvasName && $canvasState) {
+        // Clear any existing timeout
+        if (autoSaveTimeout) {
+            clearTimeout(autoSaveTimeout);
+        }
+        
+        // Set a new timeout to save after 1 second of no changes
+        autoSaveTimeout = setTimeout(() => {
+            saveCanvas(currentCanvasName);
+        }, 1000);
+    }
+}
+
+
+
+let showSaveIndicator = false;
+let saveIndicatorTimeout: NodeJS.Timeout;
+let lastSavedTime: string = '';
+
   let savedCanvases = [];
   let isPaneVisible = true;
   let currentCanvasName = '';
@@ -57,11 +80,16 @@
   });
 
   async function handleBeforeUnload(e: BeforeUnloadEvent) {
-    if (currentCanvasName) {
-      e.preventDefault();
-      await saveCanvas(currentCanvasName);
+    if (currentCanvasName && ($nodes.length > 0 || $edges.length > 0)) {
+        e.preventDefault();
+        e.returnValue = ''; // Required for Chrome
+        try {
+            await saveCanvas(currentCanvasName);
+        } catch (error) {
+            console.error('[BeforeUnload] Error saving canvas:', error);
+        }
     }
-  }
+}
 
   async function initializeDefaultCanvases() {
     try {
@@ -202,20 +230,25 @@ type SerializedNode = {
 async function loadCanvas(name: string) {
     console.log('[Canvas Load] Starting load for canvas:', name);
     
-    if (currentCanvasName) {
-        console.log('[Canvas Load] Saving current canvas before loading new one:', currentCanvasName);
-        await saveCanvas(currentCanvasName);
+    try {
+        // Save current canvas before loading new one
+        if (currentCanvasName) {
+            console.log('[Canvas Load] Saving current canvas before loading new one:', currentCanvasName);
+            await saveCanvas(currentCanvasName);
+        }
+
+        const canvasData = await getFromStore(CANVAS_STORE, name);
+        if (canvasData?.timestamp) {
+        lastSavedTime = new Date(canvasData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    try {
-        const canvasData = await getFromStore(CANVAS_STORE, name);
-        
         if (!canvasData) {
             console.error('[Canvas Load] No canvas data found:', name);
             alert('Error: No canvas data found');
             return;
         }
 
+        // Set the name before dispatching to ensure it's available during any subsequent operations
         currentCanvasName = name;
         
         dispatch('canvasload', {
@@ -242,10 +275,12 @@ async function loadCanvas(name: string) {
     };
   }
 
-  async function saveCanvas(name: string) {
-    if (!name) return;
-    
-    console.log('[Canvas Save] Saving canvas:', name);
+// Update the saveCanvas function
+async function saveCanvas(name: string) {
+    if (!name) {
+        console.log('[Canvas Save] No canvas name provided');
+        return;
+    }
     
     try {
         const canvasData = {
@@ -255,12 +290,15 @@ async function loadCanvas(name: string) {
         };
 
         await saveToStore(CANVAS_STORE, name, canvasData);
+        
+        // Update last saved time
+        lastSavedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
         console.log('[Canvas Save] Successfully saved canvas:', name);
     } catch (error) {
-        // Ignore the function cloning error since it doesn't affect functionality
         if (!error.toString().includes('could not be cloned')) {
             console.error('[Canvas Save] Error saving canvas:', error);
-            alert('Error saving canvas: ' + error.message);
+            throw error;
         }
     }
 }
@@ -499,7 +537,10 @@ async function createNewCanvas() {
         {/each}
       {/if}
     </div>
-
+    <div class="save-status">
+      <Save size={14} />
+      Last saved: {lastSavedTime || 'Never'}
+    </div>
     <div class="import-export-buttons">
       <button class="import-button" on:click={importCanvases}>
         <Upload size={18} />
@@ -816,5 +857,16 @@ async function createNewCanvas() {
 
   .close-button:hover {
     background: #c8d8e0;
+  }
+  .save-status {
+    text-align: center;
+    padding: 6px 8px;
+    color: #666;
+    font-size: 12px;
+    border-top: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
   }
 </style>

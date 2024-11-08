@@ -8,13 +8,11 @@
     Controls,
     Background,
     BackgroundVariant,
-    MiniMap,
     MarkerType,
     type Node,
     type NodeTypes,
     type Edge,
     type EdgeTypes,
-    SvelteFlowProvider,
     type OnConnectEnd,
     type OnConnectStart
   } from '@xyflow/svelte';
@@ -27,7 +25,7 @@
   import { loadTemplate } from './templateUtils';
   import ModelSelector from './ModelSelector.svelte';
   import { selectedModel, isNodeResizing, secondaryModels, isProcessing, shouldStop, startProcessing, stopProcessing, resetProcessing, activeProcesses } from './stores';
-  import { Zap, Square, Info } from 'lucide-svelte';
+  import { Zap, Square } from 'lucide-svelte';
   
   import { onMount } from 'svelte';
 
@@ -667,22 +665,35 @@ const getId = () => {
 };
 
 // Function to get the next new node label
-const getNewNodeLabel = () => {
-  // Find all existing "New Node X" labels and get their numbers
+// Track separate counters for each node type
+let promptCounter = writable(1);
+let resultCounter = writable(1);
+
+// Function to get the next new node label based on node type
+const getNewNodeLabel = (nodeType: 'text' | 'result') => {
+  // Find all existing labels for the specific node type
   const existingNumbers = $nodes
+    .filter(node => node.type === nodeType)
     .map(node => {
-      // Updated regex to match labels with model names in parentheses
-      const match = node.data.label.match(/^New Node (\d+)(?:\s*\([^)]+\))?$/);
+      const prefix = nodeType === 'text' ? 'Prompt ' : 'Result ';
+      const match = node.data.label.match(new RegExp(`^${prefix}(\\d+)(?:\\s*\\([^)]+\\))?$`));
       return match ? parseInt(match[1]) : 0;
     })
     .filter(num => !isNaN(num));
 
-  // Get the highest number used
+  // Get the highest number used for this type
   const highestNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
 
-  // Return the next number in sequence
-  return `New Node ${highestNumber + 1}`;
+  // Update the appropriate counter
+  if (nodeType === 'text') {
+    promptCounter.set(highestNumber + 1);
+    return `Prompt ${get(promptCounter)}`;
+  } else {
+    resultCounter.set(highestNumber + 1);
+    return `Result ${get(resultCounter)}`;
+  }
 };
+
 
   const { screenToFlowPosition, fitView  } = useSvelteFlow();
 
@@ -742,7 +753,7 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
             id,
             type: 'text',
             data: { 
-                label: getNewNodeLabel(), 
+                label: getNewNodeLabel('text'), 
                 text: referenceText 
             },
             position: screenToFlowPosition({
@@ -762,25 +773,29 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
         // Update both nodes and edges
         nodes.update(n => [...n, newNode]);
         edges.update(e => [...e, newEdge]);
-    } else {
-        const originalModel = get(selectedModel);  // Store original model
-        const modelsToProcess = [$selectedModel, ...$secondaryModels];
+      } else {
+        const originalModel = get(selectedModel);
+        // Create a Set to eliminate duplicate models
+        const uniqueModels = new Set([get(selectedModel), ...get(secondaryModels)]);
+        const modelsToProcess = Array.from(uniqueModels);
+        
         const basePosition = screenToFlowPosition({
             x: clientX,
             y: clientY
         });
-        
-        const promises = [];  // Collect all promises
+
+        const promises = [];
+        let modelLock = false;
 
         for (let i = 0; i < modelsToProcess.length; i++) {
             const model = modelsToProcess[i];
             const id = getId();
-            
+
             const newNode = {
                 id,
                 type: 'result',
                 data: { 
-                    label: `${getNewNodeLabel()} (${model.split('/').pop()})`,
+                    label:  `${getNewNodeLabel('result')} (${model.split('/').pop()})`,
                     text: ''
                 },
                 position: {
@@ -801,20 +816,32 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
             edges.update(e => [...e, newEdge]);
 
             if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-                const currentModel = get(selectedModel);
-                selectedModel.set(model);
-                promises.push(
-                    runConnectedNodes(newEdge.id).finally(() => {
-                        if (i === modelsToProcess.length - 1) {
-                            selectedModel.set(originalModel);  // Restore original model after all complete
-                        }
-                    })
-                );
+                promises.push((async () => {
+                    // Wait for any ongoing model switch to complete
+                    while (modelLock) {
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+                    
+                    modelLock = true;
+                    const prevModel = get(selectedModel);
+                    selectedModel.set(model);
+                    
+                    try {
+                        await runConnectedNodes(newEdge.id);
+                    } finally {
+                        selectedModel.set(prevModel);
+                        modelLock = false;
+                    }
+                })());
             }
         }
 
-        // If no promises were created, restore model immediately
-        if (promises.length === 0) {
+        // Wait for all promises to complete before final model restoration
+        if (promises.length > 0) {
+            await Promise.all(promises).finally(() => {
+                selectedModel.set(originalModel);
+            });
+        } else {
             selectedModel.set(originalModel);
         }
     }
@@ -823,7 +850,6 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     lastClickTime = Date.now();
     lastConnectEndTime = Date.now();
 };
-
 
 function onPaneClick(event) {
     const currentIsResizing = get(isNodeResizing);
@@ -871,7 +897,7 @@ function onPaneClick(event) {
         id: getId(),
         type: 'text',
         position: flowPosition,
-        data: { label: getNewNodeLabel(), text: '' }
+        data: { label: getNewNodeLabel('text'), text: '' }
     };
 
     console.log('Creating new node:', newNode);
@@ -1361,15 +1387,15 @@ function onPaneClick(event) {
   
   // Function to clear the graph
   function handleClear() {
-    nodes.set([]);
-    edges.set([]);
-    updateCyclicEdges();
-    saveStateToLocalStorage();
-
-    // Reset the new node counter when clearing the graph
-    nextNewNodeNumber.set(1);
-  }
+  nodes.set([]);
+  edges.set([]);
+  updateCyclicEdges();
+  saveStateToLocalStorage();
   
+  // Reset both counters
+  promptCounter.set(1);
+  resultCounter.set(1);
+}
 
   async function handleLoadTemplate(event) {
     const templateFile = event.detail;
@@ -1589,50 +1615,6 @@ main {
     box-shadow: 0 0 0 2px #5e3bc0 !important;
   }
 
-
-  .title {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    font-size: 24px;
-    font-weight: bold;
-    color: #333;
-    z-index: 10;
-  }
-
-  .info-icon {
-    position: absolute;
-    top: 10px;
-    left: 180px;
-    cursor: pointer;
-    z-index: 10;
-  }
-
-  .instructions {
-    position: absolute;
-    top: 50px;
-    left: 10px;
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    padding: 15px;
-    max-width: 300px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    z-index: 20;
-  }
-
-  .instructions h3 {
-    margin-top: 0;
-  }
-
-  .instructions ol {
-    padding-left: 20px;
-  }
-
-  .instructions p {
-    margin-bottom: 0;
-    font-style: italic;
-  }
 
   .hidden {
   display: none;
