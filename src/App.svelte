@@ -421,7 +421,7 @@ let edges = writable<Edge[]>([
     nodes.set(updatedNodes);
   }
   
-  async function runConnectedNodes(edgeId) {
+  async function runConnectedNodes(edgeId: string, modelOverride?: string) {
     const edge = $edges.find(e => e.id === edgeId);
     if (!edge) return;
 
@@ -498,7 +498,8 @@ let edges = writable<Edge[]>([
                         return node;
                     }));
                 },
-                () => get(shouldStop)
+                () => get(shouldStop),
+                modelOverride  // Pass the modelOverride parameter here
             );
 
             // Only update with final result if we haven't stopped
@@ -705,76 +706,47 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
         nodes.update(n => [...n, newNode]);
         edges.update(e => [...e, newEdge]);
       } else {
-        const originalModel = get(selectedModel);
-        // Create a Set to eliminate duplicate models
-        const uniqueModels = new Set([get(selectedModel), ...get(secondaryModels)]);
-        const modelsToProcess = Array.from(uniqueModels);
-        
-        const basePosition = screenToFlowPosition({
-            x: clientX,
-            y: clientY
+      // Create a Set to eliminate duplicate models
+    const uniqueModels = new Set([get(selectedModel), ...get(secondaryModels)]);
+    const modelsToProcess = Array.from(uniqueModels);
+    
+    const basePosition = screenToFlowPosition({
+        x: clientX,
+        y: clientY
+    });
+
+    for (let i = 0; i < modelsToProcess.length; i++) {
+        const model = modelsToProcess[i];
+        const id = getId();
+
+        const newNode = {
+            id,
+            type: 'result',
+            data: { 
+                label: `${getNewNodeLabel('result')} (${model.split('/').pop()})`,
+                text: ''
+            },
+            position: {
+                x: basePosition.x + (i * 250),
+                y: basePosition.y
+            },
+            origin: [0.5, 0.0]
+        };
+
+        const newEdge = createEdge({
+            id: `e${sourceNodeId}-${id}`,
+            source: sourceNodeId,
+            target: id
         });
 
-        const promises = [];
-        let modelLock = false;
+        nodes.update(n => [...n, newNode]);
+        edges.update(e => [...e, newEdge]);
 
-        for (let i = 0; i < modelsToProcess.length; i++) {
-            const model = modelsToProcess[i];
-            const id = getId();
-
-            const newNode = {
-                id,
-                type: 'result',
-                data: { 
-                    label:  `${getNewNodeLabel('result')} (${model.split('/').pop()})`,
-                    text: ''
-                },
-                position: {
-                    x: basePosition.x + (i * 250),
-                    y: basePosition.y
-                },
-                origin: [0.5, 0.0]
-            };
-
-            const newEdge = createEdge({
-                id: `e${sourceNodeId}-${id}`,
-                source: sourceNodeId,
-                target: id
-            });
-
-            await new Promise(resolve => setTimeout(resolve, 50));
-            nodes.update(n => [...n, newNode]);
-            edges.update(e => [...e, newEdge]);
-
-            if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-                promises.push((async () => {
-                    // Wait for any ongoing model switch to complete
-                    while (modelLock) {
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                    }
-                    
-                    modelLock = true;
-                    const prevModel = get(selectedModel);
-                    selectedModel.set(model);
-                    
-                    try {
-                        await runConnectedNodes(newEdge.id);
-                    } finally {
-                        selectedModel.set(prevModel);
-                        modelLock = false;
-                    }
-                })());
-            }
+        if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
+            // Run each model independently without waiting
+            runConnectedNodes(newEdge.id, model);
         }
-
-        // Wait for all promises to complete before final model restoration
-        if (promises.length > 0) {
-            await Promise.all(promises).finally(() => {
-                selectedModel.set(originalModel);
-            });
-        } else {
-            selectedModel.set(originalModel);
-        }
+    }
     }
 
     isCreatingNodeViaDrag = false;
@@ -1170,10 +1142,9 @@ function onPaneClick(event) {
 
 
 <main>
-  <div class="model-selector-container" class:hidden={$isProcessing}>
+  <div class="model-selector-container">
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
-
   <LocalCanvasPanel 
     nodes={nodes} 
     edges={edges} 

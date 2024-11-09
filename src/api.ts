@@ -7,9 +7,10 @@ const OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 export async function getLLMResponse(
   input: string,
   onChunk: (chunk: string) => void,
-  shouldStop: () => boolean
+  shouldStop: () => boolean,
+  modelOverride?: string
 ): Promise<string> {
-  const model = get(selectedModel);
+  const model = modelOverride || get(selectedModel);
   const apiKey = get(userApiKey);
   
   // Add timestamp for log correlation

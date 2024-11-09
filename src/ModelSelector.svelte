@@ -48,119 +48,127 @@
 </script>
 
 <div class="model-selector">
-  <div class="header">
-    <select 
-      on:change={handlePrimaryChange} 
-      value={$selectedModel}
-      class="primary-select"
-    >
-      {#each models as model}
-        <option value={model.value}>{model.label}</option>
-      {/each}
-    </select>
-    <button class="toggle-btn" on:click={toggleExpand}>
-      {#if isExpanded}
-        <ChevronUp size={16} />
-      {:else}
-        <ChevronDown size={16} />
-      {/if}
-    </button>
-  </div>
-
-  {#if isExpanded}
-    <div class="secondary-models">
-      {#each models as model}
-        {#if model.value !== $selectedModel}
-          <label class="checkbox-label">
+  <div class="container">
+    {#if isExpanded}
+      <div class="header">
+        {#if $selectedModel}
+          <div class="primary-card">
+            <span class="model-label">
+              {models.find(m => m.value === $selectedModel)?.label}
+            </span>
+            <button class="toggle-btn" on:click={toggleExpand}>
+              <ChevronUp size={16} />
+            </button>
+          </div>
+        {/if}
+      </div>
+      <div class="models-list">
+        {#each models as model}
+          {#if model.value !== $selectedModel}
+          <div class="model-card">
             <input
               type="checkbox"
               checked={$secondaryModels.includes(model.value)}
-              on:change={() => handleSecondaryToggle(model.value)}
+              on:click|stopPropagation={() => handleSecondaryToggle(model.value)}
             />
-            <span class="model-label">{model.label}</span>
-          </label>
-        {/if}
-      {/each}
-    </div>
+            <div on:click={() => {
+              selectedModel.set(model.value);
+              secondaryModels.update(m => m.filter(v => v !== model.value));
+            }}>
+              <span class="model-label">{model.label}</span>
+            </div>
+          </div>
+          {/if}
+        {/each}
+      </div>
+    {:else}
+      <div class="primary-card">
+        <span class="model-label">
+          {models.find(m => m.value === $selectedModel)?.label}
+        </span>
+        <button class="toggle-btn" on:click={toggleExpand}>
+          <ChevronDown size={16} />
+        </button>
+      </div>
+    {/if}
 
     {#if showKeyMessage}
       <p class="key-message">You need an API key to use this model.</p>
     {/if}
-    <ApiKeyInput />
-  {/if}
+    {#if isExpanded}
+      <ApiKeyInput />
+    {/if}
+  </div>
 </div>
 
 <style>
-  .model-selector {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .container {
     background: white;
-    padding: 8px;
+    padding: 0.75rem;
     border-radius: 4px;
     border: 1px solid #ccc;
-    min-width: 200px;
-    z-index: 100;
   }
 
   .header {
-    display: flex;
-    gap: 4px;
-    align-items: center;
+    margin-bottom: 0.5rem;
   }
 
-  .primary-select {
-    flex: 1;
-    padding: 4px 8px;
-    font-size: 12px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-  }
-
-  .toggle-btn {
-    padding: 4px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .toggle-btn:hover {
-    background: #f0f0f0;
-    border-radius: 4px;
-  }
-
-  .secondary-models {
+  .models-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding-left: 4px;
+    gap: 0.25rem;
+    width: 100%;
+    margin-bottom: 1rem;  /* Add this line */
   }
 
-  .checkbox-label {
+  .primary-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    background-color: #dde8ed;
+  }
+
+  .model-card {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    width: 100%;
+  }
+
+  .model-card input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
+
+  .model-card > div {
+    flex-grow: 1;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  .toggle-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .model-label {
-    font-size: 12px;
-    color: #333;
-  }
-
-  input[type="checkbox"] {
-    margin: 0;
-    width: 12px;
-    height: 12px;
   }
 
   .key-message {
-    color: #ff6b6b;
-    font-size: 12px;
-    margin: 4px 0;
+    color: red;
+    font-size: 0.875rem;
+    margin: 0.5rem 0 0 0;
   }
 </style>
