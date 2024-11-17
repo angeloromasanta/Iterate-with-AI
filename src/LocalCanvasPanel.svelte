@@ -53,87 +53,67 @@ function togglePane() {
 function saveCurrentCanvas() {
   if (!currentCanvasName) return;
   
-  // Create a clean copy of nodes without allNodes data
-  const cleanNodes = $nodes.map(node => {
-    const cleanNode = { ...node };
-    if (cleanNode.data && cleanNode.data.allNodes) {
-      const { allNodes, ...rest } = cleanNode.data;
-      cleanNode.data = rest;
-    }
-    return {
-      ...cleanNode,
-      measured: {
-        width: cleanNode.width || 200,
-        height: cleanNode.height || (cleanNode.type === 'text' ? 130 : 60)
-      }
-    };
-  });
-
+  // Clean and prepare the canvas data similar to export
   const canvasData = {
-    nodes: cleanNodes,
+    nodes: $nodes.map(node => {
+      const cleanNode = { ...node };
+      if (cleanNode.data && cleanNode.data.allNodes) {
+        const { allNodes, ...rest } = cleanNode.data;
+        cleanNode.data = rest;
+      }
+      return cleanNode;
+    }),
     edges: $edges,
     lastModified: new Date().toISOString()
   };
-
+  
+  // Save to localStorage
   localStorage.setItem(`canvas_${currentCanvasName}`, JSON.stringify(canvasData));
-  lastSavedTime = new Date().toLocaleTimeString();
-  
-  // Update saved canvases list if this is a new canvas
-  if (!savedCanvases.includes(currentCanvasName)) {
-    savedCanvases = [...savedCanvases, currentCanvasName];
-    localStorage.setItem('savedCanvases', JSON.stringify(savedCanvases));
-  }
-  
-  // Update last active canvas
   localStorage.setItem('lastActiveCanvas', currentCanvasName);
+  
+  // Update last saved time
+  lastSavedTime = new Date().toLocaleTimeString();
 }
 
 function loadCanvas(name) {
-  const savedCanvas = localStorage.getItem(`canvas_${name}`);
-  if (!savedCanvas) return;
+  const savedData = localStorage.getItem(`canvas_${name}`);
+  if (!savedData) return;
   
   try {
-    const canvasData = JSON.parse(savedCanvas);
-    const processedNodes = canvasData.nodes.map(node => {
-      // Extract the measured dimensions from the saved data
-      const width = node.measured?.width || node.width || 200;
-      const height = node.measured?.height || node.height || (node.type === 'text' ? 130 : 60);
-      
-      // Create a clean node without any existing dimension-related fields
-      const {
-        measured,
-        containerWidth,
-        containerHeight,
-        dimensions,
-        size,
-        style,
-        ...cleanNode
-      } = node;
-
-      return {
-        ...cleanNode,
-        width,
-        height,
-        data: {
-          ...cleanNode.data,
-          dimensions: undefined,
-          size: undefined,
-          containerWidth: undefined,
-          containerHeight: undefined
-        },
-        style: undefined,
-        class: undefined
-      };
-    });
-
-    dispatch('updateCanvas', {
-      nodes: processedNodes,
-      edges: canvasData.edges
-    });
+    const canvasData = JSON.parse(savedData);
     
-    currentCanvasName = name;
-    lastSavedTime = new Date(canvasData.lastModified).toLocaleTimeString();
-    localStorage.setItem('lastActiveCanvas', name);
+    // Reset the current canvas state
+    nodes.set([]);
+    edges.set([]);
+    
+    // Small delay to ensure clean slate
+    setTimeout(() => {
+      // Load nodes with cleaned size data
+      nodes.set(canvasData.nodes.map(node => ({
+        ...node,
+        // Ensure consistent node sizing by removing any stored dimensions
+        dimension: undefined,
+        computed: undefined,
+        style: {
+          ...node.style,
+          width: undefined,
+          height: undefined
+        }
+      })));
+      
+      edges.set(canvasData.edges);
+      
+      currentCanvasName = name;
+      localStorage.setItem('lastActiveCanvas', name);
+      lastSavedTime = new Date(canvasData.lastModified).toLocaleTimeString();
+      
+      // Dispatch event to notify parent components
+      dispatch('canvasLoaded', {
+        name: name,
+        nodeCount: canvasData.nodes.length,
+        edgeCount: canvasData.edges.length
+      });
+    }, 50);
     
   } catch (error) {
     console.error('Error loading canvas:', error);
@@ -142,17 +122,32 @@ function loadCanvas(name) {
 }
 
 function createNewCanvas() {
+  // Generate a unique name for the new canvas
   let name = 'Untitled Canvas';
   let counter = 1;
-  
   while (savedCanvases.includes(name)) {
     name = `Untitled Canvas ${counter}`;
     counter++;
   }
   
-  dispatch('clearCanvas');
+  // Create empty canvas data
+  const canvasData = {
+    nodes: [],
+    edges: [],
+    lastModified: new Date().toISOString()
+  };
+  
+  // Save the new canvas
+  localStorage.setItem(`canvas_${name}`, JSON.stringify(canvasData));
+  savedCanvases = [...savedCanvases, name];
+  localStorage.setItem('savedCanvases', JSON.stringify(savedCanvases));
+  
+  // Load the new canvas
   currentCanvasName = name;
-  saveCurrentCanvas();
+  loadCanvas(name);
+  
+  // Dispatch event to notify parent components
+  dispatch('canvasCreated', { name });
 }
 
 async function importCanvas() {
