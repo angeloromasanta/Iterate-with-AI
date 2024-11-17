@@ -27,6 +27,29 @@
   let editingIndex = -1;
   let editingContent = '';
   let windowHeight: number;
+  let manualResize = false;
+  export let width = 200;
+  export let height = 60;
+  
+  // Update container dimensions when props change
+
+  $: {
+  if (width && !isResizing && !manualResize) {
+    containerWidth = width;
+  }
+  if (height && !isResizing && !manualResize) {
+    containerHeight = height - 60; // Adjust for header/padding
+  }
+}
+
+// Modify the container size update reactive statement
+$: if (!isResizing && manualResize) {
+  updateNode(id, {
+    width: containerWidth,
+    height: containerHeight + 60 // Add back header/padding height
+  });
+}
+
 
   onMount(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -121,15 +144,17 @@
   }
 
   function handleResizeStart(event: MouseEvent) {
-    isResizing = true;
-    $isNodeResizing = true;
-    resizeStartX = event.clientX;
-    resizeStartY = event.clientY;
-    initialWidth = containerWidth;
-    initialHeight = containerHeight;
-    event.stopPropagation();
-    event.preventDefault();
-  }
+  isResizing = true;
+  manualResize = true; // Set manual resize flag
+  $isNodeResizing = true;
+  resizeStartX = event.clientX;
+  resizeStartY = event.clientY;
+  initialWidth = containerWidth;
+  initialHeight = containerHeight;
+  event.stopPropagation();
+  event.preventDefault();
+}
+
 
   function handleMouseUp() {
     isResizing = false;
@@ -141,12 +166,13 @@
   }
 
   function handleMouseMove(event: MouseEvent) {
-    if (!isResizing) return;
-    const dx = event.clientX - resizeStartX;
-    const dy = event.clientY - resizeStartY;
-    containerWidth = Math.max(200, initialWidth + dx);
-    containerHeight = Math.max(60, initialHeight + dy);
-  }
+  if (!isResizing || !manualResize) return;
+  const dx = event.clientX - resizeStartX;
+  const dy = event.clientY - resizeStartY;
+  containerWidth = Math.max(200, initialWidth + dx);
+  containerHeight = Math.max(60, initialHeight + dy);
+}
+
 
   function preventNodeDrag(event: MouseEvent | TouchEvent) {
     event.stopPropagation();

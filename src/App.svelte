@@ -31,80 +31,15 @@
 
   let lastResizeEndTime =0;
   
-  function handleCanvasLoad(event) {
-    console.log('[Canvas Load Handler] Starting canvas load handler');
-    
-    isNodeResizing.set(false);
-    
-    const { nodes: loadedNodes, edges: loadedEdges } = event.detail;
-    
-    // Set nodes with clean data
-    nodes.set(loadedNodes.map(node => ({
-        id: node.id,
-        type: node.type,
-        position: {
-            x: node.position.x,
-            y: node.position.y
-        },
-        data: {
-            label: node.data?.label || '',
-            text: node.data?.text || '',
-            results: node.data?.results || [],
-            streamingResult: null
-        },
-        selected: false,
-        dragging: false,
-        class: ''
-    })));
-    
-    // Set edges with fresh callbacks
-    edges.set(loadedEdges.map(edge => createEdge({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.type || 'custom',
-        data: {
-            ...edge.data,
-            onPlay: () => runConnectedNodes(edge.id),
-            onDelete: (id: string) => deleteEdge(id),
-            updateEdgeData: (id: string, newData: any) => updateEdgeData(id, newData),
-        }
-    })));
-    
-    updateCyclicEdges();
-
-    // Schedule a render and view fit
-    requestAnimationFrame(() => {
-        nodes.update(n => [...n]);
-        edges.update(e => [...e]);
-        
-        setTimeout(() => {
-            fitView({ 
-                padding: 0.2,
-                duration: 800
-            });
-        }, 100);
-    });
-}
-
 
 // Add this in your onMount:
 onMount(() => {
     window.addEventListener('nodeResizeEnd', (event: CustomEvent) => {
         lastResizeEndTime = event.detail.timestamp;
     });
-      window.addEventListener('edgeAdded', (event) => {
+    window.addEventListener('edgeAdded', (event) => {
     });
-    loadStateFromLocalStorage();
-
-    // Set up an interval to save the state every 5 seconds
-    const saveInterval = setInterval(saveStateToLocalStorage, 5000);
-
-    return () => {
-      clearInterval(saveInterval);
-      saveStateToLocalStorage(); // Save one last time when unmounting
-    };
-  });
+});
 
 
   
@@ -1137,7 +1072,176 @@ function onPaneClick(event) {
   function handleModelChange(event: CustomEvent<string>) {
     selectedModel.set(event.detail);
   }
+
   
+// Function to save canvas (for reference)
+function saveCanvas() {
+  // Create a clean copy of nodes without allNodes data
+  const cleanNodes = $nodes.map(node => {
+    const cleanNode = { ...node };
+    if (cleanNode.data && cleanNode.data.allNodes) {
+      const { allNodes, ...rest } = cleanNode.data;
+      cleanNode.data = rest;
+    }
+    // Save the current dimensions
+    return {
+      ...cleanNode,
+      measured: {
+        width: cleanNode.width || 200,
+        height: cleanNode.height || (cleanNode.type === 'text' ? 130 : 60)
+      }
+    };
+  });
+
+  const canvasData = {
+    nodes: cleanNodes,
+    edges: $edges
+  };
+  
+  const dataStr = JSON.stringify(canvasData);
+  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+  
+  const exportElem = document.createElement('a');
+  exportElem.setAttribute('href', dataUri);
+  exportElem.setAttribute('download', 'canvas-data.json');
+  document.body.appendChild(exportElem);
+  exportElem.click();
+  document.body.removeChild(exportElem);
+}
+
+// First, let's create a type for our node structure
+interface CanvasNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: {
+    label: string;
+    text: string;
+    [key: string]: any;
+  };
+  measured?: {
+    width: number;
+    height: number;
+  };
+  width?: number;
+  height?: number;
+  [key: string]: any;
+}
+
+// Helper function to clear the canvas
+function clearCanvas() {
+  // Reset the node resizing state
+  isNodeResizing.set(false);
+  
+  // Clear all nodes and edges
+  nodes.set([]);
+  edges.set([]);
+  
+  // Reset cyclic edges
+  updateCyclicEdges();
+  
+  // Reset processing states
+  stopProcessing();
+  resetProcessing();
+  activeProcesses.set(0);
+  
+  // Reset node counters
+  promptCounter.set(1);
+  resultCounter.set(1);
+}
+
+// Updated loading function
+function loadCanvas(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const content = e.target?.result as string;
+    try {
+      // Clear everything first
+      clearCanvas();
+      
+      const canvasData = JSON.parse(content);
+      
+      // Create a map to track used labels and their count
+      const labelCounts = new Map<string, number>();
+      
+      // Process nodes to properly set dimensions and handle duplicate labels
+      const processedNodes = canvasData.nodes.map((node: CanvasNode) => {
+        // Handle label counting
+        const baseLabel = node.data.label;
+        labelCounts.set(baseLabel, (labelCounts.get(baseLabel) || 0) + 1);
+        
+        // If this is a duplicate label, append a number
+        if (labelCounts.get(baseLabel) > 1) {
+          node.data.label = `${baseLabel} (${labelCounts.get(baseLabel)})`;
+        }
+
+        // Extract the measured dimensions from the saved data
+        const width = node.measured?.width || node.width || 200;
+        const height = node.measured?.height || node.height || (node.type === 'text' ? 130 : 60);
+        
+        // Create a clean node without any existing dimension-related fields
+        const {
+          measured,
+          containerWidth,
+          containerHeight,
+          dimensions,
+          size,
+          style,
+          ...cleanNode
+        } = node;
+
+        // Return the processed node with explicit dimensions
+        return {
+          ...cleanNode,
+          // Set explicit width and height
+          width,
+          height,
+          // Reset all other dimension-related properties
+          data: {
+            ...cleanNode.data,
+            dimensions: undefined,
+            size: undefined,
+            containerWidth: undefined,
+            containerHeight: undefined
+          },
+          // Remove any style that might affect dimensions
+          style: undefined,
+          class: undefined
+        };
+      });
+
+      // Update the nodes store with processed nodes
+      nodes.set(processedNodes);
+      edges.set(canvasData.edges);
+      
+      // Update cyclic edges
+      updateCyclicEdges();
+      
+      // Give nodes time to render before fitting view
+      setTimeout(() => {
+        // First, ensure all nodes are properly sized
+        nodes.update(n => [...n]);
+        
+        // Then fit the view
+        fitView({ 
+          padding: 0.2,
+          duration: 200 
+        });
+      }, 300);
+
+    } catch (error) {
+      console.error('Error loading canvas:', error);
+      alert('Error loading canvas data');
+    }
+  };
+  reader.readAsText(file);
+  // Reset input value to allow loading the same file again
+  input.value = '';
+}
 </script>
 
 
@@ -1148,7 +1252,6 @@ function onPaneClick(event) {
   <LocalCanvasPanel 
     nodes={nodes} 
     edges={edges} 
-    on:canvasload={handleCanvasLoad}
     on:clear={handleClear}
     on:fitview={() => fitView({ padding: 0.2 })}
   />
@@ -1180,6 +1283,27 @@ function onPaneClick(event) {
         {:else}
           <Zap size={24} />
         {/if}
+      </button>
+    </div>
+    <div class="save-load-controls">
+      <input 
+        type="file" 
+        id="load-canvas" 
+        accept=".json" 
+        on:change={loadCanvas} 
+        class="hidden"
+      />
+      <button 
+        class="save-load-button" 
+        on:click={() => document.getElementById('load-canvas')?.click()}
+      >
+        Load
+      </button>
+      <button 
+        class="save-load-button" 
+        on:click={saveCanvas}
+      >
+        Save
       </button>
     </div>
   </SvelteFlow>
@@ -1312,6 +1436,40 @@ main {
   .hidden {
   display: none;
 }
+.save-load-controls {
+    position: fixed;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 10;
+  }
+
+  .save-load-button {
+    background-color: #4a5568;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .save-load-button:hover {
+    background-color: #64748b;
+    transform: translateY(-2px);
+    box-shadow: 0 7px 14px rgba(0, 0, 0, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+  }
+
+  .save-load-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 3px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+
+
  @media screen and (max-width: 768px) {
   /* Keep custom-controls (zap button) as is */
   .custom-controls {
@@ -1324,5 +1482,6 @@ main {
     display: none !important;
   }
 }
+
 
 </style>

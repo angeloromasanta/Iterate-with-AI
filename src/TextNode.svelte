@@ -8,6 +8,10 @@
   export let id: $$Props['id'];
   export let data: $$Props['data'] & { allNodes?: { id: string; label: string }[] };
 
+  export let width = 200;
+  export let height = 130;
+
+
   const { updateNode, deleteElements } = useSvelteFlow();
 
   let suggestions: string[] = [];
@@ -15,7 +19,7 @@
   let cursorPosition = 0;
   let textarea: HTMLTextAreaElement;
   let selectedSuggestionIndex = -1;
-
+  let manualResize = false;
   let isMinimized = false;
   let containerWidth = 200;
   let containerHeight = 60;
@@ -25,6 +29,25 @@
   let initialWidth: number;
   let initialHeight: number;
   let copySuccess = false;
+  
+  // Update container dimensions when props change
+  $: {
+  if (width && !isResizing && !manualResize) {
+    containerWidth = width;
+  }
+  if (height && !isResizing && !manualResize) {
+    containerHeight = height - 60; // Adjust for header/padding
+  }
+}
+  
+
+$: if (!isResizing && manualResize) {
+  updateNode(id, {
+    width: containerWidth,
+    height: containerHeight + 60 // Add back header/padding height
+  });
+}
+
 
   if (!data.label) {
     data.label = 'Node';
@@ -192,22 +215,26 @@
 
 
 function handleResizeStart(event: MouseEvent) {
-    isResizing = true;
-    $isNodeResizing = true;  // Set global resize state
-    resizeStartX = event.clientX;
-    resizeStartY = event.clientY;
-    initialWidth = containerWidth;
-    initialHeight = containerHeight;
-    event.stopPropagation();
-  }
+  isResizing = true;
+  manualResize = true; // Set manual resize flag
+  $isNodeResizing = true;
+  resizeStartX = event.clientX;
+  resizeStartY = event.clientY;
+  initialWidth = containerWidth;
+  initialHeight = containerHeight;
+  event.stopPropagation();
+  event.preventDefault();
+}
 
-  function handleMouseMove(event: MouseEvent) {
-    if (!isResizing) return;
-    const dx = event.clientX - resizeStartX;
-    const dy = event.clientY - resizeStartY;
-    containerWidth = Math.max(200, initialWidth + dx);
-    containerHeight = Math.max(100, initialHeight + dy);
-  }
+
+function handleMouseMove(event: MouseEvent) {
+  if (!isResizing || !manualResize) return;
+  const dx = event.clientX - resizeStartX;
+  const dy = event.clientY - resizeStartY;
+  containerWidth = Math.max(200, initialWidth + dx);
+  containerHeight = Math.max(60, initialHeight + dy);
+}
+
 
   function handleMouseUp() {
     isResizing = false;
