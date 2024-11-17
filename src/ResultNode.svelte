@@ -33,20 +33,20 @@
   
   // Update container dimensions when props change
 
-  $: {
+$: {
   if (width && !isResizing && !manualResize) {
     containerWidth = width;
   }
   if (height && !isResizing && !manualResize) {
-    containerHeight = height - 60; // Adjust for header/padding
+    containerHeight = Math.max(60, height - 60); // Ensure minimum content height of 100px
   }
 }
 
-// Modify the container size update reactive statement
+// Update node dimensions when manually resizing
 $: if (!isResizing && manualResize) {
   updateNode(id, {
     width: containerWidth,
-    height: containerHeight + 60 // Add back header/padding height
+    height: Math.max(160, containerHeight + 60) // Ensure minimum total height of 160px (100px content + 60px header)
   });
 }
 

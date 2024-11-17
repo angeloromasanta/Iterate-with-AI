@@ -1,5 +1,5 @@
 <!-- LocalCanvasPanel.svelte -->
-<script lang="ts" >
+<script lang="ts">
 import { ChevronLeft, ChevronRight, Info, Plus, Edit2, Copy, Trash2, Upload, Download, Save } from 'lucide-svelte';
 import { createEventDispatcher, onMount } from 'svelte';
 import { defaultCanvases } from './defaultCanvases';
@@ -14,6 +14,7 @@ let showInfoModal = false;
 let lastSavedTime = null;
 let currentCanvasName = 'Untitled Canvas';
 let savedCanvases = [];
+let isLoading = false; // Add loading state to prevent race conditions
 
 // Load saved canvases from localStorage on component mount
 onMount(() => {
@@ -31,11 +32,10 @@ onMount(() => {
     savedCanvases = Object.keys(defaultCanvases);
     localStorage.setItem('savedCanvases', JSON.stringify(savedCanvases));
     
-    // Set the first default canvas as active
-    const firstCanvas = Object.keys(defaultCanvases)[0];
-    currentCanvasName = firstCanvas;
-    localStorage.setItem('lastActiveCanvas', firstCanvas);
-    loadCanvas(firstCanvas);
+    // Set and load the Tutorial Canvas as default
+    currentCanvasName = 'Tutorial Canvas';
+    localStorage.setItem('lastActiveCanvas', currentCanvasName);
+    loadCanvas(currentCanvasName);
   } else {
     // Load existing canvases for returning visitors
     savedCanvases = JSON.parse(saved);
@@ -43,15 +43,20 @@ onMount(() => {
     if (lastActive) {
       currentCanvasName = lastActive;
       loadCanvas(lastActive);
+    } else {
+      // If no last active canvas, load Tutorial Canvas
+      currentCanvasName = 'Tutorial Canvas';
+      loadCanvas(currentCanvasName);
     }
   }
 });
+
 function togglePane() {
   isPaneVisible = !isPaneVisible;
 }
 
 function saveCurrentCanvas() {
-  if (!currentCanvasName) return;
+  if (!currentCanvasName || isLoading) return;
   
   // Clean and prepare the canvas data similar to export
   const canvasData = {
@@ -75,9 +80,15 @@ function saveCurrentCanvas() {
   lastSavedTime = new Date().toLocaleTimeString();
 }
 
-function loadCanvas(name) {
+async function loadCanvas(name) {
+  if (isLoading) return; // Prevent multiple simultaneous loads
+  isLoading = true;
+  
   const savedData = localStorage.getItem(`canvas_${name}`);
-  if (!savedData) return;
+  if (!savedData) {
+    isLoading = false;
+    return;
+  }
   
   try {
     const canvasData = JSON.parse(savedData);
@@ -86,41 +97,47 @@ function loadCanvas(name) {
     nodes.set([]);
     edges.set([]);
     
-    // Small delay to ensure clean slate
-    setTimeout(() => {
-      // Load nodes with cleaned size data
-      nodes.set(canvasData.nodes.map(node => ({
-        ...node,
-        // Ensure consistent node sizing by removing any stored dimensions
-        dimension: undefined,
-        computed: undefined,
-        style: {
-          ...node.style,
-          width: undefined,
-          height: undefined
-        }
-      })));
-      
-      edges.set(canvasData.edges);
-      
-      currentCanvasName = name;
-      localStorage.setItem('lastActiveCanvas', name);
-      lastSavedTime = new Date(canvasData.lastModified).toLocaleTimeString();
-      
-      // Dispatch event to notify parent components
-      dispatch('canvasLoaded', {
-        name: name,
-        nodeCount: canvasData.nodes.length,
-        edgeCount: canvasData.edges.length
-      });
-    }, 50);
+    // Wait for state to clear
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Load nodes with cleaned size data
+    const cleanedNodes = canvasData.nodes.map(node => ({
+      ...node,
+      // Ensure consistent node sizing by removing any stored dimensions
+      dimension: undefined,
+      computed: undefined,
+      style: {
+        ...node.style,
+        width: undefined,
+        height: undefined
+      }
+    }));
+    
+    nodes.set(cleanedNodes);
+    edges.set(canvasData.edges);
+    
+    currentCanvasName = name;
+    localStorage.setItem('lastActiveCanvas', name);
+    lastSavedTime = new Date(canvasData.lastModified).toLocaleTimeString();
+    
+    // Dispatch event to notify parent components
+    dispatch('canvasLoaded', {
+      name: name,
+      nodeCount: cleanedNodes.length,
+      edgeCount: canvasData.edges.length
+    });
+
+    // Add delay to ensure nodes are rendered before fitting view
+    await new Promise(resolve => setTimeout(resolve, 100));
+    dispatch('fitView');
     
   } catch (error) {
     console.error('Error loading canvas:', error);
     alert('Error loading canvas data');
+  } finally {
+    isLoading = false;
   }
 }
-
 function createNewCanvas() {
   // Generate a unique name for the new canvas
   let name = 'Untitled Canvas';
