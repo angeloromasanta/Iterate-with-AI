@@ -29,18 +29,35 @@
   import { onMount } from 'svelte';
 
 
-  let lastResizeEndTime =0;
   
+let lastClickTime = Date.now();
+let lastConnectEndTime = Date.now();
+let lastResizeEndTime = Date.now();
+let isCreatingNodeViaDrag = false;
+let isNewCanvasLoading = false;
+const newCanvasLoadingDelay = 2000; // 2 second delay
+const clickThreshold = 1000; // Increase from 200 to 1000ms
+const connectEndThreshold = 1000; // Increase from 300 to 1000ms
+const resizeThreshold = 1000; // Increase from 300 to 1000ms
 
-// Add this in your onMount:
+// Add a new canvas creation cooldown
+let canvasCreationTime = Date.now();
+const canvasCreationThreshold = 2000; // 2 seconds cooldown after canvas creation
+
+// Add state initialization to onMount
 onMount(() => {
+    // Reset all timing variables on mount
+    lastClickTime = Date.now();
+    lastConnectEndTime = Date.now();
+    lastResizeEndTime = Date.now();
+    isCreatingNodeViaDrag = false;
+
+    // Add event listeners
     window.addEventListener('nodeResizeEnd', (event: CustomEvent) => {
-        lastResizeEndTime = event.detail.timestamp;
-    });
-    window.addEventListener('edgeAdded', (event) => {
+        lastResizeEndTime = Date.now();
+        console.log('Resize end time updated:', lastResizeEndTime);
     });
 });
-
 
   
   const defaultEdgeOptions = {
@@ -91,6 +108,74 @@ onMount(() => {
   };
 
 
+// Add a loading state
+let isCanvasLoading = writable(false);
+
+function onPaneClick(event) {
+    const currentIsResizing = get(isNodeResizing);
+    const currentTime = Date.now();
+    const timeSinceResize = currentTime - lastResizeEndTime;
+    const timeSinceConnectEnd = currentTime - lastConnectEndTime;
+    const timeSinceLastClick = currentTime - lastClickTime;
+    const timeSinceCanvasCreation = currentTime - canvasCreationTime;
+    
+    console.log('Pane Click Debug:', {
+        currentTime,
+        isResizing: currentIsResizing,
+        isCreatingNodeViaDrag,
+        timeSinceLastClick,
+        timeSinceResize,
+        timeSinceConnectEnd,
+        timeSinceCanvasCreation,
+        isNewCanvasLoading,
+        event: event.detail
+    });
+
+    // Enhanced prevention conditions
+    const shouldPreventCreation = 
+        isNewCanvasLoading || // New condition
+        timeSinceCanvasCreation < canvasCreationThreshold ||
+        timeSinceResize < resizeThreshold ||
+        timeSinceConnectEnd < connectEndThreshold ||
+        currentIsResizing ||
+        isCreatingNodeViaDrag ||
+        timeSinceLastClick < clickThreshold;
+
+    if (shouldPreventCreation) {
+        console.log('Prevented node creation:', {
+            reason: isNewCanvasLoading ? 'Canvas is still loading' :
+                   timeSinceCanvasCreation < canvasCreationThreshold ? 'Too soon after canvas creation' :
+                   timeSinceResize < resizeThreshold ? 'Too soon after resize' :
+                   timeSinceConnectEnd < connectEndThreshold ? 'Too soon after connect end' :
+                   currentIsResizing ? 'Currently resizing' : 
+                   isCreatingNodeViaDrag ? 'Drag in progress' : 
+                   'Click too soon',
+            timings: {
+                sinceCanvasCreation: timeSinceCanvasCreation,
+                sinceLast: timeSinceLastClick,
+                sinceResize: timeSinceResize,
+                sinceConnect: timeSinceConnectEnd
+            }
+        });
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+    }
+
+    // Create new node if checks pass
+    const { clientX, clientY } = event.detail.event;
+    const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
+    const newNode = {
+        id: getId(),
+        type: 'text',
+        position: flowPosition,
+        data: { label: getNewNodeLabel('text'), text: '' }
+    };
+
+    console.log('Creating new node:', newNode);
+    nodes.update(n => [...n, newNode]);
+    lastClickTime = currentTime;
+}
 
 
   function createEdge(params: any): Edge {
@@ -309,9 +394,6 @@ let edges = writable<Edge[]>([]);
 
 
 
-let isCreatingNodeViaDrag = false;
-let lastClickTime = 0;
-const clickThreshold = 200;
 
  // Create a derived store for the highest node ID
 const highestNodeId = derived(nodes, $nodes => {
@@ -376,8 +458,7 @@ const getNewNodeLabel = (nodeType: 'text' | 'result') => {
     isCreatingNodeViaDrag = true;
   };
 
-  let lastConnectEndTime = 0;
-const connectEndThreshold = 300; 
+
 
 const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     // Get the current resize state
@@ -497,59 +578,6 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     lastConnectEndTime = Date.now();
 };
 
-function onPaneClick(event) {
-    const currentIsResizing = get(isNodeResizing);
-    const currentTime = Date.now();
-    const timeSinceResize = currentTime - lastResizeEndTime;
-    const timeSinceConnectEnd = currentTime - lastConnectEndTime;
-    
-    console.log('Pane Click Debug:', {
-        isResizing: currentIsResizing,
-        isCreatingNodeViaDrag,
-        timeSinceLastClick: currentTime - lastClickTime,
-        timeSinceResize,
-        timeSinceConnectEnd,
-        event: event.detail
-    });
-
-    // Block node creation if:
-    // 1. Too soon after resize
-    // 2. Too soon after connect end
-    // 3. Currently resizing
-    // 4. Creating node via drag
-    // 5. Click too soon after last click
-    if (
-        timeSinceResize < 300 ||
-        timeSinceConnectEnd < connectEndThreshold ||
-        currentIsResizing ||
-        isCreatingNodeViaDrag ||
-        (currentTime - lastClickTime < clickThreshold)
-    ) {
-        console.log('Prevented node creation:', {
-            reason: timeSinceResize < 300 ? 'Too soon after resize' :
-                   timeSinceConnectEnd < connectEndThreshold ? 'Too soon after connect end' :
-                   currentIsResizing ? 'Currently resizing' : 
-                   isCreatingNodeViaDrag ? 'Drag in progress' : 
-                   'Click too soon'
-        });
-        event.preventDefault();
-        event.stopPropagation();
-        return false;
-    }
-
-    const { clientX, clientY } = event.detail.event;
-    const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
-    const newNode = {
-        id: getId(),
-        type: 'text',
-        position: flowPosition,
-        data: { label: getNewNodeLabel('text'), text: '' }
-    };
-
-    console.log('Creating new node:', newNode);
-    nodes.update(n => [...n, newNode]);
-    lastClickTime = currentTime;
-}
 
 
   function deleteNode(id: string) {
@@ -859,8 +887,29 @@ function onPaneClick(event) {
   }
 
   
-// Helper function to clear the canvas
 
+  function resetTimers() {
+    const currentTime = Date.now();
+    lastClickTime = currentTime;
+    lastConnectEndTime = currentTime;
+    lastResizeEndTime = currentTime;
+    canvasCreationTime = currentTime;
+    isCreatingNodeViaDrag = false;
+    
+    // Set loading flag and clear it after delay
+    isNewCanvasLoading = true;
+    setTimeout(() => {
+        isNewCanvasLoading = false;
+    }, newCanvasLoadingDelay);
+    
+    console.log('Timers reset:', { 
+        lastClickTime, 
+        lastConnectEndTime, 
+        lastResizeEndTime, 
+        canvasCreationTime,
+        isNewCanvasLoading 
+    });
+}
 </script>
 
 
@@ -869,21 +918,35 @@ function onPaneClick(event) {
     <ModelSelector on:modelChange={handleModelChange} />
   </div>
   <LocalCanvasPanel 
-  {nodes}
-  {edges}
-  on:clearCanvas={() => {
-    nodes.set([]);
-    edges.set([]);
-    updateCyclicEdges();
-  }}
-  on:updateCanvas={({ detail }) => {
-    nodes.set(detail.nodes);
-    edges.set(detail.edges);
-    updateCyclicEdges();
-  }}
-  on:fitView={() => {
-    fitView({ duration: 200 });
-  }}
+    {nodes}
+    {edges}
+    on:clearCanvas={() => {
+        nodes.set([]);
+        edges.set([]);
+        updateCyclicEdges();
+        resetTimers();
+    }}
+    on:resetTimers={resetTimers}
+    on:setLoading={({ detail }) => {
+        isCanvasLoading.set(detail.loading);
+        if (detail.loading) {
+            isNewCanvasLoading = true;
+            setTimeout(() => {
+                isNewCanvasLoading = false;
+            }, newCanvasLoadingDelay);
+        }
+    }}
+    on:updateCanvas={({ detail }) => {
+        nodes.set(detail.nodes);
+        edges.set(detail.edges);
+        updateCyclicEdges();
+    }}
+    on:fitView={() => {
+        fitView({ duration: 200 });
+    }}
+    on:canvasCreated={() => {
+        resetTimers();
+    }}
 />
   <SvelteFlow
     {nodes}

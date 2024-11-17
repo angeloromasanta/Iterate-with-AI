@@ -139,6 +139,10 @@ async function loadCanvas(name) {
   }
 }
 function createNewCanvas() {
+  if (isLoading) return;
+  isLoading = true;
+  dispatch('setLoading', { loading: true });
+  
   // Generate a unique name for the new canvas
   let name = 'Untitled Canvas';
   let counter = 1;
@@ -147,10 +151,61 @@ function createNewCanvas() {
     counter++;
   }
   
-  // Create empty canvas data
+  // Create initial nodes matching the structure of working JSON
+  const textNode = {
+    id: "1",
+    type: "text",
+    data: {
+      label: "Text Node 1",
+      text: ""  // Empty text to start
+    },
+    position: {
+      x: 100,
+      y: 100
+    },
+    measured: {
+      width: 200,   // Default width
+      height: 140   // Default height
+    },
+    selected: false,
+    class: "",
+    style: {}
+  };
+  
+  const resultNode = {
+    id: "2",
+    type: "result",
+    data: {
+      label: "Result Node 1",
+      text: ""  // Empty result to start
+    },
+    position: {
+      x: 350,
+      y: 100
+    },
+    measured: {
+      width: 200,   // Default width
+      height: 130   // Default height for result nodes
+    },
+    selected: false,
+    class: "",
+    style: {}
+  };
+  
+  // Create initial edge
+  const edge = {
+    id: "e1-2",
+    source: "1",
+    target: "2",
+    data: {
+      showLoopCount: false
+    },
+    selected: false
+  };
+  
   const canvasData = {
-    nodes: [],
-    edges: [],
+    nodes: [textNode, resultNode],
+    edges: [edge],
     lastModified: new Date().toISOString()
   };
   
@@ -159,13 +214,33 @@ function createNewCanvas() {
   savedCanvases = [...savedCanvases, name];
   localStorage.setItem('savedCanvases', JSON.stringify(savedCanvases));
   
-  // Load the new canvas
+  // Update current canvas name
   currentCanvasName = name;
-  loadCanvas(name);
   
-  // Dispatch event to notify parent components
-  dispatch('canvasCreated', { name });
+  // Clear existing state
+  nodes.set([]);
+  edges.set([]);
+  
+  // Use Promise chain for proper sequencing
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Set new nodes and edges
+      nodes.set(canvasData.nodes);
+      edges.set(canvasData.edges);
+      
+      dispatch('resetTimers');
+      
+      // Wait for nodes to be rendered
+      setTimeout(() => {
+        dispatch('fitView');
+        dispatch('setLoading', { loading: false });
+        isLoading = false;
+        resolve();
+      }, 100);
+    }, 50);
+  });
 }
+
 
 async function importCanvas() {
   const input = document.createElement('input');
