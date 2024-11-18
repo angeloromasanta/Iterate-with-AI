@@ -504,7 +504,7 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
                 x: clientX,
                 y: clientY
             }),
-            origin: [0.5, 0.0]
+            origin: [0.0, 0.0]
         };
 
         // Create the edge first
@@ -539,10 +539,11 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
                 text: ''
             },
             position: {
-                x: basePosition.x + (i * 250),
+                x: basePosition.x + (i * 550),
                 y: basePosition.y
             },
-            origin: [0.5, 0.0]
+            origin: [0.0, 0.0],
+            width: 500
         };
 
         const newEdge = createEdge({
