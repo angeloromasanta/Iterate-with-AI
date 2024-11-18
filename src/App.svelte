@@ -116,53 +116,41 @@ function onPaneClick(event) {
     const currentTime = Date.now();
     const timeSinceResize = currentTime - lastResizeEndTime;
     const timeSinceConnectEnd = currentTime - lastConnectEndTime;
-    const timeSinceLastClick = currentTime - lastClickTime;
-    const timeSinceCanvasCreation = currentTime - canvasCreationTime;
     
     console.log('Pane Click Debug:', {
-        currentTime,
         isResizing: currentIsResizing,
         isCreatingNodeViaDrag,
-        timeSinceLastClick,
+        timeSinceLastClick: currentTime - lastClickTime,
         timeSinceResize,
         timeSinceConnectEnd,
-        timeSinceCanvasCreation,
-        isNewCanvasLoading,
         event: event.detail
     });
 
-    // Enhanced prevention conditions
-    const shouldPreventCreation = 
-        isNewCanvasLoading || // New condition
-        timeSinceCanvasCreation < canvasCreationThreshold ||
-        timeSinceResize < resizeThreshold ||
+    // Block node creation if:
+    // 1. Too soon after resize
+    // 2. Too soon after connect end
+    // 3. Currently resizing
+    // 4. Creating node via drag
+    // 5. Click too soon after last click
+    if (
+        timeSinceResize < 300 ||
         timeSinceConnectEnd < connectEndThreshold ||
         currentIsResizing ||
         isCreatingNodeViaDrag ||
-        timeSinceLastClick < clickThreshold;
-
-    if (shouldPreventCreation) {
+        (currentTime - lastClickTime < clickThreshold)
+    ) {
         console.log('Prevented node creation:', {
-            reason: isNewCanvasLoading ? 'Canvas is still loading' :
-                   timeSinceCanvasCreation < canvasCreationThreshold ? 'Too soon after canvas creation' :
-                   timeSinceResize < resizeThreshold ? 'Too soon after resize' :
+            reason: timeSinceResize < 300 ? 'Too soon after resize' :
                    timeSinceConnectEnd < connectEndThreshold ? 'Too soon after connect end' :
                    currentIsResizing ? 'Currently resizing' : 
                    isCreatingNodeViaDrag ? 'Drag in progress' : 
-                   'Click too soon',
-            timings: {
-                sinceCanvasCreation: timeSinceCanvasCreation,
-                sinceLast: timeSinceLastClick,
-                sinceResize: timeSinceResize,
-                sinceConnect: timeSinceConnectEnd
-            }
+                   'Click too soon'
         });
         event.preventDefault();
         event.stopPropagation();
         return false;
     }
 
-    // Create new node if checks pass
     const { clientX, clientY } = event.detail.event;
     const flowPosition = screenToFlowPosition({ x: clientX, y: clientY });
     const newNode = {
