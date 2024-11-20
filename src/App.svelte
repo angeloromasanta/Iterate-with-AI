@@ -76,30 +76,24 @@ onMount(() => {
     result: ResultNode
   };
 
-  // Function to get node data including all nodes
-  function getNodeData(node) {
-  
-  const allNodesData = $nodes.map(n => {
-    const nodeData = {
-      id: n.id,
-      label: n.data.label,
-      text: n.data.text,  
-      type: n.type,
-      results: n.data.results || []
-    };
-    return nodeData;
-  });
 
-  const returnData = {
+// Update getNodeData to match
+function getNodeData(node) {
+  const allNodesData = $nodes.map(n => ({
+    id: n.id,
+    label: n.data.label,
+    text: n.data.text,
+    type: n.type,  // Include the node type
+    results: n.data.results || []  // Include the results array
+  }));
+
+  return {
     label: node.data.label,
     text: node.data.text,
     results: node.data.results || [],
     allNodes: allNodesData
   };
-  
-  return returnData;
 }
-
 
 
   
@@ -220,16 +214,7 @@ let edges = writable<Edge[]>([]);
     }
   }
 
-  const nodesWithAllNodesData = derived(nodes, $nodes => {
-    const allNodesData = $nodes.map(node => ({ id: node.id, label: node.data.label, text: node.data.text  }));
-    return $nodes.map(node => ({
-      ...node,
-      data: {
-        ...node.data,
-        allNodes: allNodesData
-      }
-    }));
-  });
+
 
   // Use this reactive statement to update the nodes store
   $: {
@@ -237,6 +222,28 @@ let edges = writable<Edge[]>([]);
     nodes.set(updatedNodes);
   }
   
+
+
+ // Update the derived store to include all necessary node data
+const nodesWithAllNodesData = derived(nodes, $nodes => {
+  const allNodesData = $nodes.map(node => ({
+    id: node.id,
+    label: node.data.label,
+    text: node.data.text,
+    type: node.type,  // Include the node type
+    results: node.data.results || []  // Include the results array
+  }));
+  
+  return $nodes.map(node => ({
+    ...node,
+    data: {
+      ...node.data,
+      allNodes: allNodesData
+    }
+  }));
+});
+
+
   async function runConnectedNodes(edgeId: string, modelOverride?: string) {
     const edge = $edges.find(e => e.id === edgeId);
     if (!edge) return;

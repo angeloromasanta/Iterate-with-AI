@@ -1,3 +1,4 @@
+<!-- TextNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Trash2, Check } from 'lucide-svelte';
@@ -8,10 +9,6 @@
   export let id: $$Props['id'];
   export let data: $$Props['data'] & { allNodes?: { id: string; label: string }[] };
 
-  export let width = 200;
-  export let height = 130;
-
-
   const { updateNode, deleteElements } = useSvelteFlow();
 
   let suggestions: string[] = [];
@@ -19,7 +16,7 @@
   let cursorPosition = 0;
   let textarea: HTMLTextAreaElement;
   let selectedSuggestionIndex = -1;
-  let manualResize = false;
+
   let isMinimized = false;
   let containerWidth = 200;
   let containerHeight = 60;
@@ -29,25 +26,6 @@
   let initialWidth: number;
   let initialHeight: number;
   let copySuccess = false;
-  
-  // Update container dimensions when props change
-  $: {
-  if (width && !isResizing && !manualResize) {
-    containerWidth = width;
-  }
-  if (height && !isResizing && !manualResize) {
-    containerHeight = height - 60; // Adjust for header/padding
-  }
-}
-  
-
-$: if (!isResizing && manualResize) {
-  updateNode(id, {
-    width: containerWidth,
-    height: containerHeight + 60 // Add back header/padding height
-  });
-}
-
 
   if (!data.label) {
     data.label = 'Node';
@@ -193,14 +171,28 @@ $: if (!isResizing && manualResize) {
     textToCopy = textToCopy.replace(regex, (match, label) => {
       const referencedNode = data.allNodes?.find(n => n.label === label);
       console.log(`Looking for node with label "${label}"`, referencedNode);
+      console.log(`Node type:`, referencedNode?.type);
+      console.log(`Node results:`, referencedNode?.results);
       
       if (referencedNode) {
-        const nodeContent = referencedNode.text;
-        console.log(`Found text content for "${label}":`, nodeContent);
-        return `<${label}>${nodeContent || match}</${label}>`;
+        if (referencedNode.type === 'result') {
+          if (referencedNode.results && referencedNode.results.length > 0) {
+            const latestResult = referencedNode.results[referencedNode.results.length - 1];
+            console.log(`Found result content for "${label}":`, latestResult);
+            return `<${label}>${latestResult}</${label}>`;
+          } else {
+            console.log(`Result node found but no results available for "${label}"`);
+          }
+        } else if (referencedNode.type === 'text') {
+          const nodeContent = referencedNode.text;
+          console.log(`Found text content for "${label}":`, nodeContent);
+          return `<${label}>${nodeContent}</${label}>`;
+        } else {
+          console.log(`Unknown node type for "${label}":`, referencedNode.type);
+        }
       }
       
-      console.log(`No text content found for "${label}", keeping original reference`);
+      console.log(`No content found for "${label}", keeping original reference`);
       return match;
     });
 
@@ -215,26 +207,22 @@ $: if (!isResizing && manualResize) {
 
 
 function handleResizeStart(event: MouseEvent) {
-  isResizing = true;
-  manualResize = true; // Set manual resize flag
-  $isNodeResizing = true;
-  resizeStartX = event.clientX;
-  resizeStartY = event.clientY;
-  initialWidth = containerWidth;
-  initialHeight = containerHeight;
-  event.stopPropagation();
-  event.preventDefault();
-}
+    isResizing = true;
+    $isNodeResizing = true;  // Set global resize state
+    resizeStartX = event.clientX;
+    resizeStartY = event.clientY;
+    initialWidth = containerWidth;
+    initialHeight = containerHeight;
+    event.stopPropagation();
+  }
 
-
-function handleMouseMove(event: MouseEvent) {
-  if (!isResizing || !manualResize) return;
-  const dx = event.clientX - resizeStartX;
-  const dy = event.clientY - resizeStartY;
-  containerWidth = Math.max(200, initialWidth + dx);
-  containerHeight = Math.max(60, initialHeight + dy);
-}
-
+  function handleMouseMove(event: MouseEvent) {
+    if (!isResizing) return;
+    const dx = event.clientX - resizeStartX;
+    const dy = event.clientY - resizeStartY;
+    containerWidth = Math.max(200, initialWidth + dx);
+    containerHeight = Math.max(100, initialHeight + dy);
+  }
 
   function handleMouseUp() {
     isResizing = false;
