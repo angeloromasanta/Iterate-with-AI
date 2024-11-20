@@ -12,13 +12,18 @@ let isPaneVisible = true;
 let showToggle = false;
 let showInfoModal = false;
 let lastSavedTime = null;
-let currentCanvasName = 'Untitled Canvas';
+let currentCanvasName: string | null = null;
 let savedCanvases = [];
 let isLoading = false; // Add loading state to prevent race conditions
 
 // Load saved canvases from localStorage on component mount
+
+let isUnmounting = false;
+
+
 onMount(() => {
   const saved = localStorage.getItem('savedCanvases');
+  console.log('On load - savedCanvases:', saved);
   const isFirstVisit = !saved;
 
   if (isFirstVisit) {
@@ -40,6 +45,7 @@ onMount(() => {
     // Load existing canvases for returning visitors
     savedCanvases = JSON.parse(saved);
     const lastActive = localStorage.getItem('lastActiveCanvas');
+      console.log('On load - lastActive:', lastActive);
     if (lastActive) {
       currentCanvasName = lastActive;
       loadCanvas(lastActive);
@@ -49,15 +55,19 @@ onMount(() => {
       loadCanvas(currentCanvasName);
     }
   }
-});
 
+  // Add cleanup function
+  return () => {
+    isUnmounting = true;
+  };
+});
 function togglePane() {
   isPaneVisible = !isPaneVisible;
 }
 
 function saveCurrentCanvas() {
   if (!currentCanvasName || isLoading) return;
-  
+  console.log('Saving canvas:', currentCanvasName);
   // Clean and prepare the canvas data similar to export
   const canvasData = {
     nodes: $nodes.map(node => {
@@ -81,7 +91,7 @@ function saveCurrentCanvas() {
 }
 
 async function loadCanvas(name) {
-  if (isLoading) return; // Prevent multiple simultaneous loads
+  if (isLoading) return;
   isLoading = true;
   
   const savedData = localStorage.getItem(`canvas_${name}`);
@@ -93,7 +103,11 @@ async function loadCanvas(name) {
   try {
     const canvasData = JSON.parse(savedData);
     
-    // Reset the current canvas state
+    // Set the name first
+    currentCanvasName = name;
+    localStorage.setItem('lastActiveCanvas', name);
+    
+    // Then reset the current canvas state
     nodes.set([]);
     edges.set([]);
     
@@ -391,7 +405,10 @@ function deleteCanvas(name) {
 // Auto-save functionality
 $: {
   if ($nodes || $edges) {
-    saveCurrentCanvas();
+    if (!isUnmounting && currentCanvasName !== null) {
+      console.log('Auto-save triggered for:', currentCanvasName);
+      saveCurrentCanvas();
+    }
   }
 }
 </script>
