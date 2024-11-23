@@ -1,8 +1,10 @@
+<!-- ResultNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Check, Trash2, Edit2, X } from 'lucide-svelte';
   import { isNodeResizing } from './stores'
   import { onMount } from 'svelte';
+  import SvelteMarkdown from 'svelte-markdown';
 
   type $$Props = NodeProps;
   export let id: $$Props['id'];
@@ -130,19 +132,6 @@ $: if (!isResizing && manualResize) {
   $: streamingResult = data.streamingResult || '';
   $: completedResults = data.results || [];
 
-  function formatText(text) {
-    return text
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^\* (.*$)/gim, '<li>$1</li>')
-      .replace(/^(\d+\. .*$)/gim, '<ol><li>$1</li></ol>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code>$1</code>');
-  }
-
   function handleResizeStart(event: MouseEvent) {
   isResizing = true;
   manualResize = true; // Set manual resize flag
@@ -226,56 +215,57 @@ $: if (!isResizing && manualResize) {
   </div>
   {#if !isMinimized}
     <div class="results-container" 
-         style="height: {containerHeight}px;"
-         on:mousedown={preventNodeDrag}
-         on:touchstart={preventNodeDrag}
-         on:wheel={handleWheel}
-         bind:this={resultsContainer}>
-      {#if !completedResults.length && !streamingResult}
-        <div>No results yet</div>
-      {:else}
-        {#each completedResults as result, index}
-          <div class="result selectable">
-            {#if editingIndex === index}
-    <div class="edit-container">
-      <textarea
-        class="edit-textarea"
-        bind:value={editingContent}
-        on:keydown={(e) => {
-          if (e.key === 'Enter' && e.ctrlKey) saveEdit();
-          if (e.key === 'Escape') cancelEdit();
-        }}
-      />
-      <div class="edit-buttons">
-        <button class="edit-action-button" on:click={saveEdit} title="Save">
-          <Check size={14} />
-        </button>
-        <button class="edit-action-button" on:click={cancelEdit} title="Cancel">
-          <X size={14} />
-        </button>
-      </div>
-    </div>
+     style="height: {containerHeight}px;"
+     on:mousedown={preventNodeDrag}
+     on:touchstart={preventNodeDrag}
+     on:wheel={handleWheel}
+     bind:this={resultsContainer}>
+  {#if !completedResults.length && !streamingResult}
+    <div>No results yet</div>
   {:else}
-    <div class="result-content">
-      {@html formatText(result)}
-      <button 
-        class="edit-icon-button" 
-        on:click={() => startEditing(index, result)}
-        title="Edit result"
-      >
-        <Edit2 size={14} />
-      </button>
-    </div>
-  {/if}
+    {#each completedResults as result, index}
+      <div class="result selectable">
+        {#if editingIndex === index}
+          <div class="edit-container">
+            <textarea
+              class="edit-textarea"
+              bind:value={editingContent}
+              on:keydown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) saveEdit();
+                if (e.key === 'Escape') cancelEdit();
+              }}
+            />
+            <div class="edit-buttons">
+              <button class="edit-action-button" on:click={saveEdit} title="Save">
+                <Check size={14} />
+              </button>
+              <button class="edit-action-button" on:click={cancelEdit} title="Cancel">
+                <X size={14} />
+              </button>
+            </div>
           </div>
-        {/each}
-        {#if streamingResult}
-          <div class="result streaming selectable">
-            {@html formatText(streamingResult)}
+        {:else}
+          <div class="result-content">
+            <SvelteMarkdown source={result} />
+            <button 
+              class="edit-icon-button" 
+              on:click={() => startEditing(index, result)}
+              title="Edit result"
+            >
+              <Edit2 size={14} />
+            </button>
           </div>
         {/if}
-      {/if}
-    </div>
+      </div>
+    {/each}
+    {#if streamingResult}
+      <div class="result streaming selectable">
+        <SvelteMarkdown source={streamingResult} />
+      </div>
+    {/if}
+  {/if}
+</div>
+
   {/if}
   <div 
     class="resize-handle" 
@@ -470,5 +460,44 @@ $: if (!isResizing && manualResize) {
                   }
   .result-content:hover .edit-icon-button {
     opacity: 1;
+  }
+    :global(.result-content :first-child) {
+    margin-top: 0;
+  }
+  
+  :global(.result-content :last-child) {
+    margin-bottom: 0;
+  }
+  
+  :global(.result-content p) {
+    margin: 0.5em 0;
+  }
+  
+  :global(.result-content ul, .result-content ol) {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+  }
+  
+  :global(.result-content code) {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+  
+  :global(.result-content pre code) {
+    display: block;
+    padding: 1em;
+    overflow-x: auto;
+  }
+  
+  :global(.result-content h1, 
+          .result-content h2, 
+          .result-content h3, 
+          .result-content h4, 
+          .result-content h5, 
+          .result-content h6) {
+    margin: 0.5em 0;
+    font-weight: bold;
   }
 </style>
