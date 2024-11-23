@@ -26,6 +26,26 @@
   let initialWidth: number;
   let initialHeight: number;
   let copySuccess = false;
+export let width = 200;
+export let height = 60;
+let manualResize = false;
+
+$: {
+  if (width && !isResizing && !manualResize) {
+    containerWidth = width;
+  }
+  if (height && !isResizing && !manualResize) {
+    containerHeight = Math.max(60, height - 60);
+  }
+}
+
+$: if (!isResizing && manualResize) {
+  updateNode(id, {
+    width: containerWidth,
+    height: Math.max(160, containerHeight + 60)
+  });
+}
+
 
   if (!data.label) {
     data.label = 'Node';
@@ -207,22 +227,25 @@
 
 
 function handleResizeStart(event: MouseEvent) {
-    isResizing = true;
-    $isNodeResizing = true;  // Set global resize state
-    resizeStartX = event.clientX;
-    resizeStartY = event.clientY;
-    initialWidth = containerWidth;
-    initialHeight = containerHeight;
-    event.stopPropagation();
-  }
+  isResizing = true;
+  manualResize = true;  // Add this line
+  $isNodeResizing = true;
+  resizeStartX = event.clientX;
+  resizeStartY = event.clientY;
+  initialWidth = containerWidth;
+  initialHeight = containerHeight;
+  event.stopPropagation();
+  event.preventDefault();
+}
 
-  function handleMouseMove(event: MouseEvent) {
-    if (!isResizing) return;
-    const dx = event.clientX - resizeStartX;
-    const dy = event.clientY - resizeStartY;
-    containerWidth = Math.max(200, initialWidth + dx);
-    containerHeight = Math.max(100, initialHeight + dy);
-  }
+
+function handleMouseMove(event: MouseEvent) {
+  if (!isResizing || !manualResize) return;  // Add !manualResize check
+  const dx = event.clientX - resizeStartX;
+  const dy = event.clientY - resizeStartY;
+  containerWidth = Math.max(200, initialWidth + dx);
+  containerHeight = Math.max(60, initialHeight + dy);
+}
 
   function handleMouseUp() {
     isResizing = false;
