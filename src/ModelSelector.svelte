@@ -11,7 +11,6 @@
     { value: 'meta-llama/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
     { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
     { value: 'openai/chatgpt-4o-latest', label: 'Chat GPT-4o' },
-    { value: 'openai/o1-preview', label: 'OpenAI O1 Preview' },
     { value: 'google/gemini-pro-1.5', label: 'Google Gemini' }
   ];
 
@@ -19,17 +18,18 @@
   let isExpanded = true;
 
   function handlePrimaryChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    if (!$userApiKey && target.value !== models[0].value) {
-      showKeyMessage = true;
-      selectedModel.set(models[0].value);
-    } else {
-      showKeyMessage = false;
-      selectedModel.set(target.value);
-      secondaryModels.update(models => models.filter(m => m !== target.value));
-      dispatch('modelChange', target.value);
-    }
+  const target = event.target as HTMLSelectElement;
+  if (!$userApiKey && target.value !== models[0].value) {
+    showKeyMessage = true;
+    selectedModel.set(models[0].value);
+  } else {
+    showKeyMessage = false;
+    selectedModel.set(target.value);
+    // Clear all secondary models when primary changes
+    secondaryModels.set([]);
+    dispatch('modelChange', target.value);
   }
+}
 
   function handleSecondaryToggle(modelValue: string) {
     if (modelValue === $selectedModel) return;
@@ -46,17 +46,16 @@
     isExpanded = !isExpanded;
   }
 </script>
-
 <div class="model-selector">
   <div class="container">
     {#if isExpanded}
       <div class="header">
         {#if $selectedModel}
-          <div class="primary-card">
+          <div class="primary-card" on:click|stopPropagation={() => secondaryModels.set([])}>
             <span class="model-label">
               {models.find(m => m.value === $selectedModel)?.label}
             </span>
-            <button class="toggle-btn" on:click={toggleExpand}>
+            <button class="toggle-btn" on:click|stopPropagation={toggleExpand}>
               <ChevronUp size={16} />
             </button>
           </div>
@@ -73,7 +72,7 @@
             />
             <div on:click={() => {
               selectedModel.set(model.value);
-              secondaryModels.update(m => m.filter(v => v !== model.value));
+              secondaryModels.set([]);
             }}>
               <span class="model-label">{model.label}</span>
             </div>
@@ -82,11 +81,11 @@
         {/each}
       </div>
     {:else}
-      <div class="primary-card">
+      <div class="primary-card" on:click|stopPropagation={() => secondaryModels.set([])}>
         <span class="model-label">
           {models.find(m => m.value === $selectedModel)?.label}
         </span>
-        <button class="toggle-btn" on:click={toggleExpand}>
+        <button class="toggle-btn" on:click|stopPropagation={toggleExpand}>
           <ChevronDown size={16} />
         </button>
       </div>
@@ -100,6 +99,7 @@
     {/if}
   </div>
 </div>
+
 
 <style>
   .container {
