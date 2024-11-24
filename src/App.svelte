@@ -473,19 +473,48 @@ const getNewNodeLabel = (nodeType: 'text' | 'result') => {
 
 
 const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
-    // Get the current resize state
     const currentIsResizing = get(isNodeResizing);
     
-    // If we're currently resizing, don't create a new node
     if (currentIsResizing) {
         isCreatingNodeViaDrag = false;
         return;
     }
 
-    if (connectionState.isValid) {
+      if (connectionState.isValid) {
+        const sourceNodeId = connectionState.fromNode?.id;
+        const targetNodeId = connectionState.toNode?.id;
+        
+        if (sourceNodeId && targetNodeId) {
+            const sourceNode = $nodes.find(node => node.id === sourceNodeId);
+            const targetNode = $nodes.find(node => node.id === targetNodeId);
+            
+            // If target is a text node, append the source node reference
+            if (targetNode?.type === 'text' && sourceNode) {
+                const reference = `{${sourceNode.data.label}}`;
+                const currentText = targetNode.data.text || '';
+                
+                // Only append if the reference doesn't already exist
+                if (!currentText.includes(reference)) {
+                    nodes.update(n => n.map(node => {
+                        if (node.id === targetNodeId) {
+                            return {
+                                ...node,
+                                data: {
+                                    ...node.data,
+                                    text: currentText ? `${currentText} ${reference}` : reference
+                                }
+                            };
+                        }
+                        return node;
+                    }));
+                }
+            }
+        }
+        
         isCreatingNodeViaDrag = false;
         return;
     }
+
 
     const sourceNodeId = connectionState.fromNode?.id ?? '1';
     const sourceNode = $nodes.find(node => node.id === sourceNodeId);
@@ -595,7 +624,6 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
     lastClickTime = Date.now();
     lastConnectEndTime = Date.now();
 };
-
 
 
   function deleteNode(id: string) {
