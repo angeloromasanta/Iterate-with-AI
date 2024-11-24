@@ -207,13 +207,30 @@ function onPaneClick(event) {
 let nodes = writable<Node[]>([]);
 let edges = writable<Edge[]>([]);
 
-
-  $: {
-    if ($edges) {
-      updateCyclicEdges();
+function initializeEdgeData(edge) {
+  return {
+    ...edge,
+    type: 'custom',
+    markerEnd: defaultEdgeOptions.markerEnd,
+    style: defaultEdgeOptions.style,
+    data: {
+      ...edge.data,
+      onPlay: () => runConnectedNodes(edge.id),
+      onDelete: (id) => deleteEdge(id),
+      updateEdgeData: (id, newData) => updateEdgeData(id, newData),
+      showLoopCount: edge.data?.showLoopCount || false,
+      loopCount: edge.data?.loopCount || 2
     }
-  }
+  };
+}
 
+// Modify the edges store subscription to initialize all edges
+$: {
+  if ($edges) {
+    edges.update(eds => eds.map(edge => initializeEdgeData(edge)));
+    updateCyclicEdges();
+  }
+}
 
 
   // Use this reactive statement to update the nodes store
@@ -865,15 +882,19 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
   }
 
 
-  function handleEdgeCreate(connection: Connection): Edge { //Cannot find name 'Connection'.
-    const newEdge = createEdge({
-      id: `e${connection.source}-${connection.target}`,
-      source: connection.source,
-      target: connection.target
-    });
-    edges.update(eds => [...eds, newEdge]);
-    return newEdge;
-  }
+
+// Update handleEdgeCreate to use initializeEdgeData
+function handleEdgeCreate(connection) {
+  const baseEdge = {
+    id: `e${connection.source}-${connection.target}`,
+    source: connection.source,
+    target: connection.target,
+    data: {}
+  };
+  const newEdge = initializeEdgeData(baseEdge);
+  edges.update(eds => [...eds, newEdge]);
+  return newEdge;
+}
 
  
   
