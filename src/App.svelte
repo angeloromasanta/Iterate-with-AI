@@ -541,49 +541,54 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
         // Update both nodes and edges
         nodes.update(n => [...n, newNode]);
         edges.update(e => [...e, newEdge]);
-      } else {
-      // Create a Set to eliminate duplicate models
-    const uniqueModels = new Set([get(selectedModel), ...get(secondaryModels)]);
-    const modelsToProcess = Array.from(uniqueModels);
-    
-    const basePosition = screenToFlowPosition({
-        x: clientX,
-        y: clientY
-    });
-
-    for (let i = 0; i < modelsToProcess.length; i++) {
-        const model = modelsToProcess[i];
-        const id = getId();
-
-        const newNode = {
-            id,
-            type: 'result',
-            data: { 
-                label: `${getNewNodeLabel('result')} (${model.split('/').pop()})`,
-                text: ''
-            },
-            position: {
-                x: basePosition.x + (i * 550),
-                y: basePosition.y
-            },
-            origin: [0.0, 0.0],
-            width: 500
-        };
-
-        const newEdge = createEdge({
-            id: `e${sourceNodeId}-${id}`,
-            source: sourceNodeId,
-            target: id
+    } else {
+        // Create a Set to eliminate duplicate models
+        const uniqueModels = new Set([get(selectedModel), ...get(secondaryModels)]);
+        const modelsToProcess = Array.from(uniqueModels);
+        
+        const basePosition = screenToFlowPosition({
+            x: clientX,
+            y: clientY
         });
 
-        nodes.update(n => [...n, newNode]);
-        edges.update(e => [...e, newEdge]);
+        // Get the base result number
+        const baseResultNumber = getNewNodeLabel('result').split(' ')[1];
 
-        if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-            // Run each model independently without waiting
-            runConnectedNodes(newEdge.id, model);
+        for (let i = 0; i < modelsToProcess.length; i++) {
+            const model = modelsToProcess[i];
+            const id = getId();
+            // Convert index to letter (0 = A, 1 = B, etc.)
+            const letter = String.fromCharCode(65 + i);
+
+            const newNode = {
+                id,
+                type: 'result',
+                data: { 
+                    label: `Result ${baseResultNumber} (${letter})`,
+                    text: ''
+                },
+                position: {
+                    x: basePosition.x + (i * 550),
+                    y: basePosition.y
+                },
+                origin: [0.0, 0.0],
+                width: 500
+            };
+
+            const newEdge = createEdge({
+                id: `e${sourceNodeId}-${id}`,
+                source: sourceNodeId,
+                target: id
+            });
+
+            nodes.update(n => [...n, newNode]);
+            edges.update(e => [...e, newEdge]);
+
+            if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
+                // Run each model independently without waiting
+                runConnectedNodes(newEdge.id, model);
+            }
         }
-    }
     }
 
     isCreatingNodeViaDrag = false;
