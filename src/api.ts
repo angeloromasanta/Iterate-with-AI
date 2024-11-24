@@ -1,8 +1,55 @@
 // api.ts
 import { get } from "svelte/store";
-import { selectedModel, userApiKey } from "./stores";
+import { selectedModel, userApiKey, latestCost, cumulativeCost, generationId } from "./stores";
 
 const OPENROUTER_API_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+
+// Keep track of pending cost fetches to avoid overlapping requests
+const pendingCostFetches = new Map<string, Promise<number>>();
+
+// Fetch cost without blocking and with deduplication
+async function fetchGenerationCost(genId: string, apiKey: string): Promise<number> {
+  // Return existing promise if we're already fetching this generation's cost
+  if (pendingCostFetches.has(genId)) {
+    return pendingCostFetches.get(genId)!;
+  }
+
+  const costPromise = fetch(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to fetch generation cost');
+      }
+      return response.json();
+    })
+    .then(data => data.data.total_cost)
+    .finally(() => {
+      // Clean up the pending fetch
+      pendingCostFetches.delete(genId);
+    });
+
+  pendingCostFetches.set(genId, costPromise);
+  return costPromise;
+}
+
+// Separate function to handle cost updates without blocking
+async function updateCosts(genId: string, apiKey: string) {
+  try {
+    const cost = await fetchGenerationCost(genId, apiKey);
+    latestCost.set(cost);
+    cumulativeCost.update(total => total + cost);
+
+    // Reset latest cost after 3 seconds (for flash effect)
+    setTimeout(() => {
+      latestCost.set(null);
+    }, 3000);
+  } catch (error) {
+    console.error('Failed to fetch generation cost:', error);
+  }
+}
 
 export async function getLLMResponse(
   input: string,
@@ -12,8 +59,7 @@ export async function getLLMResponse(
 ): Promise<string> {
   const model = modelOverride || get(selectedModel);
   const apiKey = get(userApiKey);
-  
-  // Add timestamp for log correlation
+
   const startTime = new Date().toISOString();
   console.log(`[${startTime}] Starting LLM request for input:`, input);
 
@@ -53,7 +99,10 @@ export async function getLLMResponse(
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let fullResponse = "";
-    let debugFullResponse = ""; // Separate variable for logging all chunks
+    let debugFullResponse = "";
+
+    // Variable to store the generation ID
+    let generationIdValue: string | null = null;
 
     while (true) {
       if (shouldStop()) {
@@ -70,38 +119,34 @@ export async function getLLMResponse(
       const chunk = decoder.decode(value, { stream: true });
 
       if (apiKey) {
-        // Handle direct OpenRouter streaming response
         const lines = chunk.split("\n").filter((line) => line.trim() !== "");
         for (const line of lines) {
           if (shouldStop()) {
             console.log(`[${startTime}] Request stopped by user during line processing. Accumulated response:`, debugFullResponse);
             return fullResponse;
           }
-          
+
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
             if (data === "[DONE]") {
               console.log(`[${startTime}] Received [DONE] signal`);
               continue;
             }
-            
+
             try {
-              // Log raw data for debugging
-              console.log(`[${startTime}] Raw chunk data:`, data);
-              
               const parsed = JSON.parse(data);
-              // Log the full parsed structure
-              console.log(`[${startTime}] Parsed chunk:`, JSON.stringify(parsed, null, 2));
+
+              // Store generation ID when received
+              if (parsed.id && !generationIdValue) {
+                generationIdValue = parsed.id;
+                generationId.set(parsed.id);
+              }
 
               if (parsed.choices?.[0]?.delta?.content !== undefined) {
                 const content = parsed.choices[0].delta.content;
-                debugFullResponse += content; // Add to debug log
-                console.log(`[${startTime}] Processing content chunk:`, content);
+                debugFullResponse += content;
                 onChunk(content);
                 fullResponse += content;
-              } else if (parsed.choices?.[0]?.delta) {
-                // Log other types of delta messages
-                console.log(`[${startTime}] Non-content delta received:`, parsed.choices[0].delta);
               }
             } catch (error) {
               console.warn(`[${startTime}] Error parsing chunk:`, error, "Raw chunk:", data);
@@ -110,26 +155,21 @@ export async function getLLMResponse(
           }
         }
       } else {
-        // Server-side response handling
-        console.log(`[${startTime}] Server-side chunk received:`, chunk);
-        debugFullResponse += chunk; // Add to debug log
+        debugFullResponse += chunk;
         onChunk(chunk);
         fullResponse += chunk;
       }
     }
 
-    // Log final complete response
-    console.log(`[${startTime}] Complete response logged:`, {
-      input,
-      response: debugFullResponse,
-      model,
-      timestamp: new Date().toISOString()
-    });
+    // After streaming is complete, initiate cost fetching
+    if (apiKey && generationIdValue) {
+      // Fire and forget - don't await
+      updateCosts(generationIdValue, apiKey);
+    }
 
     return fullResponse;
   } catch (error) {
     console.error(`[${startTime}] Error calling LLM API:`, error);
-    console.log(`[${startTime}] Final accumulated response before error:`, debugFullResponse);
     throw new Error("Unable to get response from LLM.");
   }
 }

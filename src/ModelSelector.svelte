@@ -1,7 +1,7 @@
 <!-- ModelSelector.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { selectedModel, secondaryModels, userApiKey } from './stores';
+  import { selectedModel, secondaryModels, userApiKey, latestCost, cumulativeCost } from './stores';
   import ApiKeyInput from './ApiKeyInput.svelte';
   import { ChevronUp, ChevronDown } from 'lucide-svelte';
 
@@ -18,18 +18,17 @@
   let isExpanded = true;
 
   function handlePrimaryChange(event: Event) {
-  const target = event.target as HTMLSelectElement;
-  if (!$userApiKey && target.value !== models[0].value) {
-    showKeyMessage = true;
-    selectedModel.set(models[0].value);
-  } else {
-    showKeyMessage = false;
-    selectedModel.set(target.value);
-    // Clear all secondary models when primary changes
-    secondaryModels.set([]);
-    dispatch('modelChange', target.value);
+    const target = event.target as HTMLSelectElement;
+    if (!$userApiKey && target.value !== models[0].value) {
+      showKeyMessage = true;
+      selectedModel.set(models[0].value);
+    } else {
+      showKeyMessage = false;
+      selectedModel.set(target.value);
+      secondaryModels.set([]);
+      dispatch('modelChange', target.value);
+    }
   }
-}
 
   function handleSecondaryToggle(modelValue: string) {
     if (modelValue === $selectedModel) return;
@@ -45,7 +44,12 @@
   function toggleExpand() {
     isExpanded = !isExpanded;
   }
+
+  // Format costs with 5 decimal places
+  $: formattedLatestCost = $latestCost?.toFixed(5) ?? '';
+  $: formattedCumulativeCost = $cumulativeCost.toFixed(5);
 </script>
+
 <div class="model-selector">
   <div class="container">
     {#if isExpanded}
@@ -64,19 +68,19 @@
       <div class="models-list">
         {#each models as model}
           {#if model.value !== $selectedModel}
-          <div class="model-card">
-            <input
-              type="checkbox"
-              checked={$secondaryModels.includes(model.value)}
-              on:click|stopPropagation={() => handleSecondaryToggle(model.value)}
-            />
-            <div on:click={() => {
-              selectedModel.set(model.value);
-              secondaryModels.set([]);
-            }}>
-              <span class="model-label">{model.label}</span>
+            <div class="model-card">
+              <input
+                type="checkbox"
+                checked={$secondaryModels.includes(model.value)}
+                on:click|stopPropagation={() => handleSecondaryToggle(model.value)}
+              />
+              <div on:click={() => {
+                selectedModel.set(model.value);
+                secondaryModels.set([]);
+              }}>
+                <span class="model-label">{model.label}</span>
+              </div>
             </div>
-          </div>
           {/if}
         {/each}
       </div>
@@ -96,10 +100,21 @@
     {/if}
     {#if isExpanded}
       <ApiKeyInput />
+      {#if $userApiKey}
+        <div class="costs-container">
+          {#if $latestCost !== null}
+            <div class="cost-item latest-cost flash">
+              Latest: ${formattedLatestCost}
+            </div>
+          {/if}
+          <div class="cost-item">
+            Total: ${formattedCumulativeCost}
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
-
 
 <style>
   .container {
@@ -118,7 +133,7 @@
     flex-direction: column;
     gap: 0.25rem;
     width: 100%;
-    margin-bottom: 1rem;  /* Add this line */
+    margin-bottom: 1rem;
   }
 
   .primary-card {
@@ -170,5 +185,35 @@
     color: red;
     font-size: 0.875rem;
     margin: 0.5rem 0 0 0;
+  }
+
+  .costs-container {
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+    font-family: monospace;
+    font-size: 0.875rem;
+  }
+
+  .cost-item {
+    padding: 0.25rem 0;
+    color: #666;
+  }
+
+  .latest-cost {
+    color: #2f855a;
+  }
+
+  .flash {
+    animation: flashAnimation 3s ease-out;
+  }
+
+  @keyframes flashAnimation {
+    0% {
+      background-color: rgba(47, 133, 90, 0.2);
+    }
+    100% {
+      background-color: transparent;
+    }
   }
 </style>

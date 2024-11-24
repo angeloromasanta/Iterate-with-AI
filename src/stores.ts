@@ -11,6 +11,10 @@ export const isProcessing = writable(false);
 export const shouldStop = writable(false);
 export const activeProcesses = writable(0);
 
+export const latestCost = writable<number | null>(null);
+export const cumulativeCost = writable<number>(0);
+export const generationId = writable<string | null>(null);
+
 export function startProcessing() {
     isProcessing.set(true);
     shouldStop.set(false); // Reset stop flag when starting new process
