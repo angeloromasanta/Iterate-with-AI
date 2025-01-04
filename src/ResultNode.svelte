@@ -183,6 +183,7 @@ $: if (!isResizing && manualResize) {
       <select on:change={changeNodeType} value="result">
         <option value="text">Text</option>
         <option value="result">Result</option>
+        <option value="list">List</option>
       </select>
     </div>
     <div class="buttons">

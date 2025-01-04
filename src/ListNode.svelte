@@ -1,4 +1,4 @@
-<!-- TextNode.svelte -->
+<!-- ListNode.svelte -->
 <script lang="ts">
   import { Handle, Position, type NodeProps, useSvelteFlow } from '@xyflow/svelte';
   import { Copy, Minimize2, Maximize2, Trash2, Check } from 'lucide-svelte';
@@ -52,18 +52,25 @@ $: if (!isResizing && manualResize) {
   }
   if (!data.text) data.text = 'Insert prompt here.';
 
-  onMount(() => {
-    console.log(`TextNode ${id} mounted`);
-    textarea.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
+// Update onMount and handleKeyDown in ListNode.svelte
+onMount(() => {
+  console.log(`ListNode ${id} mounted`);
+  // Only add textarea event listeners when in edit mode
+  if (isEditing) {
+    textarea?.addEventListener('keydown', handleKeyDown);
+  }
+  window.addEventListener('mousemove', handleMouseMove);
+  window.addEventListener('mouseup', handleMouseUp);
+  return () => {
+    // Same for cleanup
+    if (textarea) {
       textarea.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      $isNodeResizing = false;
-    };
-  });
+    }
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    $isNodeResizing = false;
+  };
+});
 
   function handleKeyDown(e: KeyboardEvent) {
     if (!showSuggestions) return;
@@ -116,16 +123,36 @@ $: if (!isResizing && manualResize) {
     });
   }
 
-  function updateLabel(event) {
-    const newLabel = event.target.value;
-    updateNode(id, { data: { ...data, label: newLabel } });
-  }
 
-  function updateText(event) {
-    const newText = event.target.value;
-    updateNode(id, { data: { ...data, text: newText } });
-    checkForAutocomplete(newText);
-  }
+
+  // Add these functions to ListNode.svelte
+function formatListText(text: string): string {
+  const items = parseListItems(text);
+  if (items.length === 0) return text;
+  
+  return items.map((item, index) => {
+    const numberedItem = item.trim();
+    return `${index + 1}. ${numberedItem}${index < items.length - 1 ? '\n\n---\n\n' : ''}`;
+  }).join('');
+}
+
+// Add this variable to track focus state
+let isTextareaFocused = false;
+
+// Modify updateText to include formatting
+function updateText(event) {
+  const newText = event.target.value;
+  const isValid = validateListFormat(newText);
+  updateNode(id, { 
+    data: { 
+      ...data, 
+      text: newText,
+      isValid,
+      items: isValid ? parseListItems(newText) : []
+    } 
+  });
+}
+
 
   function checkForAutocomplete(text: string) {
     if (!data.allNodes || data.allNodes.length === 0) {
@@ -162,10 +189,58 @@ $: if (!isResizing && manualResize) {
   }
 
   function changeNodeType(event) {
-    const newType = event.target.value;
-    console.log(`Changing node ${id} type to:`, newType);
-    updateNode(id, { type: newType });
-  }
+  const newType = event.target.value;
+  // Store the node type in data
+  updateNode(id, { 
+    type: newType,
+    data: { 
+      ...data,
+      nodeType: newType  // Add this line
+    } 
+  });
+}
+// Add to the script section:
+let isEditing = false;
+
+// Modify handlers
+function handleFocus() {
+  isTextareaFocused = true;
+  isEditing = true;
+}
+
+
+
+// Add click handler for view mode
+// Modify the startEditing function
+function startEditing(event: MouseEvent) {
+  event.stopPropagation();
+  isEditing = true;
+  isTextareaFocused = true;
+  // Use nextTick to ensure DOM is updated
+  setTimeout(() => {
+    if (textarea) {
+      textarea.focus();
+    }
+  });
+}
+
+// Update handleBlur to properly handle the editing state
+function handleBlur() {
+  isTextareaFocused = false;
+  isEditing = false;
+  const items = parseListItems(data.text);
+  if (items.length === 0) return;
+  
+  const newText = items.join('\n---\n');
+  updateNode(id, { 
+    data: { 
+      ...data, 
+      text: newText,
+      isValid: true,
+      items
+    } 
+  });
+}
 
   function onTextareaMouseDown(event: MouseEvent) {
     event.stopPropagation();
@@ -225,6 +300,10 @@ $: if (!isResizing && manualResize) {
   }
 }
 
+function updateLabel(event) {
+  const newLabel = event.target.value;
+  updateNode(id, { data: { ...data, label: newLabel } });
+}
 
 function handleResizeStart(event: MouseEvent) {
   isResizing = true;
@@ -255,6 +334,18 @@ function handleMouseMove(event: MouseEvent) {
   function handleWheel(event: WheelEvent) {
     event.stopPropagation();
   }
+
+// Add list-specific functionality
+  function parseListItems(text: string): string[] {
+    return text.split('---').map(item => item.trim()).filter(item => item.length > 0);
+  }
+
+  // Add validation
+  function validateListFormat(text: string): boolean {
+    const items = parseListItems(text);
+    return items.length > 0;
+  }
+
 
   
 </script>
@@ -299,14 +390,34 @@ function handleMouseMove(event: MouseEvent) {
   </div>
   {#if !isMinimized}
   <div class="text-container" style="height: {containerHeight}px;">
+    {#if isEditing}
     <textarea
       bind:this={textarea}
       value={data.text}
       on:input={updateText}
-      on:mousedown={onTextareaMouseDown}
-      on:wheel={handleWheel}
-      placeholder="Insert prompt here."
+      on:focus={handleFocus}
+      on:blur={handleBlur}
+      placeholder="Enter list items separated by ---"
+      class:invalid={data.text && !data.isValid}
+      class:focused={isTextareaFocused}
     />
+  {:else}
+  <div class="list-view" 
+  on:click={startEditing}
+  on:mousedown|stopPropagation={(e) => {
+    if (e.target.closest('.item-content')) {
+      e.stopPropagation();
+      startEditing(e);
+    }
+  }}
+>
+{#each parseListItems(data.text) as item, i}
+<div class="list-item">
+  <div class="item-content">{item}</div>
+</div>
+{/each}
+</div>
+  {/if}
     {#if showSuggestions}
       <div class="suggestions">
         {#each suggestions as suggestion, index}
@@ -329,7 +440,7 @@ function handleMouseMove(event: MouseEvent) {
 
 <style>
   .custom {
-    background-color: #eee;
+    background-color: #dde8ed;
     padding: 10px;
     border-radius: 10px;
     position: relative;
@@ -374,7 +485,16 @@ function handleMouseMove(event: MouseEvent) {
     padding: 5px;
     font-size: 14px;
     font-family: inherit;
+    white-space: pre-wrap;
+  line-height: 1.5;
   }
+  textarea.focused {
+  background-color: white;
+}
+
+textarea:not(.focused) {
+  background-color: #f8f9fa;
+}
   select {
     width: 100%;
     padding: 2px 5px;
@@ -423,5 +543,60 @@ function handleMouseMove(event: MouseEvent) {
     height: 10px;
     background-color: #888;
     cursor: nwse-resize;
+  }
+  .list-preview {
+    padding: 8px;
+    background: #f5f5f5;
+    margin-top: 8px;
+    border-radius: 4px;
+  }
+  
+  .list-view {
+  height: 100%;
+  overflow-y: auto;
+  padding: 8px;  /* Match result node padding */
+  background: white;
+  border-radius: 4px;
+  cursor: text;
+  border: 1px solid #ccc;  /* Add border like result node */
+  font-size: 14px;  /* Match result node font size */
+  font-family: inherit;
+}
+
+.list-item {
+  margin-bottom: 8px;
+}
+
+.item-content {
+  background: #f8f9fa;
+  padding: 5px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.item-separator {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+  padding: 0 20px;
+}
+
+.separator-line {
+  flex: 1;
+  height: 1px;
+  background: #dee2e6;
+}
+
+.separator-dot {
+  width: 6px;
+  height: 6px;
+  background: #dee2e6;
+  border-radius: 50%;
+  margin: 0 8px;
+}
+
+  textarea.invalid {
+    border-color: #ff6b6b;
   }
 </style>

@@ -20,6 +20,7 @@
   import { getLLMResponse } from './api';
   import TextNode from './TextNode.svelte';
   import ResultNode from './ResultNode.svelte';
+  import ListNode from './ListNode.svelte';
   import CustomEdge from './CustomEdge.svelte';
   import LocalCanvasPanel from './LocalCanvasPanel.svelte';
   import ModelSelector from './ModelSelector.svelte';
@@ -72,9 +73,10 @@ onMount(() => {
   };
 
   const nodeTypes: NodeTypes = {
-    text: TextNode,
-    result: ResultNode
-  };
+  text: TextNode,
+  result: ResultNode,
+  list: ListNode  // Add this line
+};
 
 
 // Update getNodeData to match
@@ -261,41 +263,91 @@ const nodesWithAllNodesData = derived(nodes, $nodes => {
 });
 
 
-  async function runConnectedNodes(edgeId: string, modelOverride?: string) {
+async function runConnectedNodes(edgeId: string, modelOverride?: string) {
     const edge = $edges.find(e => e.id === edgeId);
     if (!edge) return;
 
     const sourceNode = $nodes.find(n => n.id === edge.source);
     const targetNode = $nodes.find(n => n.id === edge.target);
 
-    if (sourceNode && targetNode && sourceNode.type === 'text' && targetNode.type === 'result') {
+    if (sourceNode && targetNode && (sourceNode.type === 'text' || sourceNode.type === 'list') && targetNode.type === 'result') {
         startProcessing();
         activeProcesses.update(n => n + 1);
 
-        // Process the source node
-        let processedText = sourceNode.data.text;
+        // Array to store all text variations to process
+        let textVariations: string[] = [];
         const referencedNodes = [];
 
-        // Replace references with actual values and collect referenced nodes
-        const regex = /{([^}]+)}/g;
-        processedText = processedText.replace(regex, (match, label) => {
-            const referencedNode = $nodes.find(n => n.data.label === label);
-            if (referencedNode) {
-                referencedNodes.push(referencedNode);
-                if (referencedNode.type === 'result' && referencedNode.data.results) {
-                    const content = Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-                        ? referencedNode.data.results[referencedNode.data.results.length - 1]
-                        : match;
-                    return `<${label}>${content}</${label}>`;
-                } else if (referencedNode.type === 'text') {
-                    const content = referencedNode.data.text || match;
-                    return `<${label}>${content}</${label}>`;
+        if (sourceNode.type === 'list') {
+            // Direct list node connection - split items and process directly
+            textVariations = sourceNode.data.text.split('---')
+                .map(item => item.trim())
+                .filter(item => item.length > 0);
+        } else {
+            // Text node - handle references including list references
+            let processedText = sourceNode.data.text;
+            
+            // Replace references with actual values and collect referenced nodes
+            const regex = /{([^}]+)}/g;
+            let containsListReference = false;
+
+            // First pass: collect all references and identify list nodes
+            const matches = Array.from(processedText.matchAll(regex));
+            const replacements = new Map();
+
+            for (const match of matches) {
+                const label = match[1];
+                const referencedNode = $nodes.find(n => n.data.label === label);
+                
+                if (referencedNode) {
+                    referencedNodes.push(referencedNode);
+                    
+                    if (referencedNode.type === 'list') {
+                        containsListReference = true;
+                        const items = referencedNode.data.text.split('---')
+                            .map(item => item.trim())
+                            .filter(item => item.length > 0);
+                        replacements.set(label, items);
+                    } else if (referencedNode.type === 'result') {
+                        const content = Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
+                            ? referencedNode.data.results[referencedNode.data.results.length - 1]
+                            : match[0];
+                        replacements.set(label, [`<${label}>${content}</${label}>`]);
+                    } else if (referencedNode.type === 'text') {
+                        const content = referencedNode.data.text || match[0];
+                        replacements.set(label, [`<${label}>${content}</${label}>`]);
+                    }
                 }
             }
-            return match;
-        });
 
-        // Update node classes
+            if (containsListReference) {
+                // Generate all combinations of list items
+                function generateCombinations(text: string, labels: string[]): string[] {
+                    if (labels.length === 0) return [text];
+                    
+                    const currentLabel = labels[0];
+                    const remainingLabels = labels.slice(1);
+                    const items = replacements.get(currentLabel) || [currentLabel];
+                    
+                    return items.flatMap(item => {
+                        const newText = text.replace(new RegExp(`{${currentLabel}}`, 'g'), item);
+                        return generateCombinations(newText, remainingLabels);
+                    });
+                }
+
+                const labelsToReplace = Array.from(replacements.keys());
+                textVariations = generateCombinations(processedText, labelsToReplace);
+            } else {
+                // No list references - just do simple replacement
+                processedText = processedText.replace(regex, (match, label) => {
+                    const items = replacements.get(label);
+                    return items ? items[0] : match;
+                });
+                textVariations = [processedText];
+            }
+        }
+
+        // Update node classes for visual feedback
         nodes.update(n => n.map(node => ({
             ...node,
             class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
@@ -313,69 +365,74 @@ const nodesWithAllNodesData = derived(nodes, $nodes => {
         // Delay to allow for visual update
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        let fullResponse = '';
         try {
-            const response = await getLLMResponse(
-                processedText,
-                (chunk) => {
-                    // Check stop condition before processing each chunk
-                    if (get(shouldStop)) {
-                        throw new Error('Processing stopped by user');
-                    }
-                    
-                    fullResponse += chunk;
-                    nodes.update(n => n.map(node => {
-                        if (node.id === targetNode.id) {
-                            return {
-                                ...node,
-                                data: {
-                                    ...node.data,
-                                    streamingResult: fullResponse,
-                                    results: [...(node.data.results || [])]
-                                }
-                            };
-                        }
-                        return node;
-                    }));
-                },
-                () => get(shouldStop),
-                modelOverride  // Pass the modelOverride parameter here
-            );
+            // Process each variation
+            for (const text of textVariations) {
+                if (get(shouldStop)) break;
 
-            // Only update with final result if we haven't stopped
-            if (!get(shouldStop)) {
-                nodes.update(n => n.map(node => {
-                    if (node.id === targetNode.id) {
-                        return {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                streamingResult: null,
-                                results: [...(node.data.results || []), response]
+                let fullResponse = '';
+                try {
+                    const response = await getLLMResponse(
+                        text,
+                        (chunk) => {
+                            if (get(shouldStop)) {
+                                throw new Error('Processing stopped by user');
                             }
-                        };
-                    }
-                    return node;
-                }));
-            }
-        } catch (error) {
-            if (error.message === 'Processing stopped by user') {
-                // If stopped by user, keep the partial result
-                nodes.update(n => n.map(node => {
-                    if (node.id === targetNode.id) {
-                        return {
-                            ...node,
-                            data: {
-                                ...node.data,
-                                streamingResult: null,
-                                results: [...(node.data.results || []), fullResponse]
+                            
+                            fullResponse += chunk;
+                            nodes.update(n => n.map(node => {
+                                if (node.id === targetNode.id) {
+                                    return {
+                                        ...node,
+                                        data: {
+                                            ...node.data,
+                                            streamingResult: fullResponse,
+                                            results: [...(node.data.results || [])]
+                                        }
+                                    };
+                                }
+                                return node;
+                            }));
+                        },
+                        () => get(shouldStop),
+                        modelOverride
+                    );
+
+                    if (!get(shouldStop)) {
+                        nodes.update(n => n.map(node => {
+                            if (node.id === targetNode.id) {
+                                return {
+                                    ...node,
+                                    data: {
+                                        ...node.data,
+                                        streamingResult: null,
+                                        results: [...(node.data.results || []), response]
+                                    }
+                                };
                             }
-                        };
+                            return node;
+                        }));
                     }
-                    return node;
-                }));
-            } else {
-                throw error; // Re-throw if it's not our stop error
+                } catch (error) {
+                    if (error.message === 'Processing stopped by user') {
+                        nodes.update(n => n.map(node => {
+                            if (node.id === targetNode.id) {
+                                return {
+                                    ...node,
+                                    data: {
+                                        ...node.data,
+                                        streamingResult: null,
+                                        results: [...(node.data.results || []), fullResponse]
+                                    }
+                                };
+                            }
+                            return node;
+                        }));
+                        break;
+                    } else {
+                        throw error;
+                    }
+                }
             }
         } finally {
             // Reset processing classes and animations
@@ -401,8 +458,6 @@ const nodesWithAllNodesData = derived(nodes, $nodes => {
         }
     }
 }
-
-
 
 
 
@@ -437,14 +492,17 @@ const getId = () => {
 // Track separate counters for each node type
 let promptCounter = writable(1);
 let resultCounter = writable(1);
+let listCounter = writable(1);  // Add this line
 
-// Function to get the next new node label based on node type
-const getNewNodeLabel = (nodeType: 'text' | 'result') => {
+// Then find and replace the getNewNodeLabel function with this:
+const getNewNodeLabel = (nodeType: 'text' | 'result' | 'list') => {
   // Find all existing labels for the specific node type
   const existingNumbers = $nodes
     .filter(node => node.type === nodeType)
     .map(node => {
-      const prefix = nodeType === 'text' ? 'Prompt ' : 'Result ';
+      const prefix = nodeType === 'text' ? 'Prompt ' : 
+                    nodeType === 'result' ? 'Result ' : 
+                    'List ';
       const match = node.data.label.match(new RegExp(`^${prefix}(\\d+)(?:\\s*\\([^)]+\\))?$`));
       return match ? parseInt(match[1]) : 0;
     })
@@ -457,12 +515,14 @@ const getNewNodeLabel = (nodeType: 'text' | 'result') => {
   if (nodeType === 'text') {
     promptCounter.set(highestNumber + 1);
     return `Prompt ${get(promptCounter)}`;
-  } else {
+  } else if (nodeType === 'result') {
     resultCounter.set(highestNumber + 1);
     return `Result ${get(resultCounter)}`;
+  } else {
+    listCounter.set(highestNumber + 1);
+    return `List ${get(listCounter)}`;
   }
 };
-
 
   const { screenToFlowPosition, fitView  } = useSvelteFlow();
 
@@ -612,11 +672,10 @@ const handleConnectEnd: OnConnectEnd = async (event, connectionState) => {
 
             nodes.update(n => [...n, newNode]);
             edges.update(e => [...e, newEdge]);
-
-            if (sourceNode && sourceNode.type === 'text' && sourceNode.data.text && sourceNode.data.text !== '') {
-                // Run each model independently without waiting
-                runConnectedNodes(newEdge.id, model);
-            }
+            if (sourceNode && (sourceNode.type === 'text' || sourceNode.type === 'list') && sourceNode.data.text && sourceNode.data.text !== '') {
+    // Run each model independently without waiting
+    runConnectedNodes(newEdge.id, model);
+}
         }
     }
 
