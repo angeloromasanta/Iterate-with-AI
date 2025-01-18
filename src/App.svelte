@@ -244,15 +244,20 @@ $: {
 
 
  // Update the derived store to include all necessary node data
+// In App.svelte, update the derived store:
 const nodesWithAllNodesData = derived(nodes, $nodes => {
+  // First, gather all node data including results
   const allNodesData = $nodes.map(node => ({
     id: node.id,
     label: node.data.label,
     text: node.data.text,
-    type: node.type,  // Include the node type
-    results: node.data.results || []  // Include the results array
+    type: node.type,
+    results: node.data.results || [],
+    // Also include any streaming result that might be in progress
+    streamingResult: node.data.streamingResult
   }));
   
+  // Then update each node with the complete data
   return $nodes.map(node => ({
     ...node,
     data: {
@@ -262,72 +267,106 @@ const nodesWithAllNodesData = derived(nodes, $nodes => {
   }));
 });
 
+// And when updating nodes with new results, force a refresh:
+function updateNodeWithResult(nodeId, newResult) {
+  nodes.update(currentNodes => {
+    const updatedNodes = currentNodes.map(node => {
+      if (node.id === nodeId) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            streamingResult: null,
+            results: [...(node.data.results || []), newResult]
+          }
+        };
+      }
+      return node;
+    });
+    
+    // Force refresh of allNodes data
+    const allNodesData = updatedNodes.map(n => ({
+      id: n.id,
+      label: n.data.label,
+      text: n.data.text,
+      type: n.type,
+      results: n.data.results || []
+    }));
+    
+    return updatedNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        allNodes: allNodesData
+      }
+    }));
+  });
+}
 
 async function runConnectedNodes(edgeId: string, modelOverride?: string) {
+    console.log(`Starting runConnectedNodes for edge: ${edgeId}`);
     const edge = $edges.find(e => e.id === edgeId);
-    if (!edge) return;
+    if (!edge) {
+        console.log('Edge not found, aborting');
+        return;
+    }
 
     const sourceNode = $nodes.find(n => n.id === edge.source);
     const targetNode = $nodes.find(n => n.id === edge.target);
+    
+    console.log('Source node:', sourceNode?.id, sourceNode?.type, sourceNode?.data.label);
+    console.log('Target node:', targetNode?.id, targetNode?.type, targetNode?.data.label);
 
     if (sourceNode && targetNode && (sourceNode.type === 'text' || sourceNode.type === 'list') && targetNode.type === 'result') {
         startProcessing();
         activeProcesses.update(n => n + 1);
 
-        // Array to store all text variations to process
         let textVariations: string[] = [];
         const referencedNodes = [];
 
+        console.log('Initial source node text:', sourceNode.data.text);
+
         if (sourceNode.type === 'list') {
-            // Direct list node connection - split items and process directly
             textVariations = sourceNode.data.text.split('---')
                 .map(item => item.trim())
                 .filter(item => item.length > 0);
+            console.log('List node variations:', textVariations);
         } else {
-            // Text node - handle references including list references
-            let processedText = sourceNode.data.text;
+            // Just get the raw text initially
+            const rawText = sourceNode.data.text;
+            console.log('Raw text before processing:', rawText);
             
-            // Replace references with actual values and collect referenced nodes
             const regex = /{([^}]+)}/g;
             let containsListReference = false;
-
-            // First pass: collect all references and identify list nodes
-            const matches = Array.from(processedText.matchAll(regex));
-            const replacements = new Map();
-
+            const matches = Array.from(rawText.matchAll(regex));
+            console.log('Found references:', matches.map(m => m[1]));
+            
+            const listReplacements = new Map();
+            
+            // Only process list references to build variations
             for (const match of matches) {
                 const label = match[1];
                 const referencedNode = $nodes.find(n => n.data.label === label);
+                console.log(`Processing reference to "${label}"`, referencedNode?.type);
                 
-                if (referencedNode) {
+                if (referencedNode && referencedNode.type === 'list') {
+                    containsListReference = true;
                     referencedNodes.push(referencedNode);
-                    
-                    if (referencedNode.type === 'list') {
-                        containsListReference = true;
-                        const items = referencedNode.data.text.split('---')
-                            .map(item => item.trim())
-                            .filter(item => item.length > 0);
-                        replacements.set(label, items);
-                    } else if (referencedNode.type === 'result') {
-                        const content = Array.isArray(referencedNode.data.results) && referencedNode.data.results.length > 0
-                            ? referencedNode.data.results[referencedNode.data.results.length - 1]
-                            : match[0];
-                        replacements.set(label, [`<${label}>${content}</${label}>`]);
-                    } else if (referencedNode.type === 'text') {
-                        const content = referencedNode.data.text || match[0];
-                        replacements.set(label, [`<${label}>${content}</${label}>`]);
-                    }
+                    const items = referencedNode.data.text.split('---')
+                        .map(item => item.trim())
+                        .filter(item => item.length > 0);
+                    listReplacements.set(label, items);
+                    console.log(`List items for "${label}":`, items);
                 }
             }
 
             if (containsListReference) {
-                // Generate all combinations of list items
                 function generateCombinations(text: string, labels: string[]): string[] {
                     if (labels.length === 0) return [text];
                     
                     const currentLabel = labels[0];
                     const remainingLabels = labels.slice(1);
-                    const items = replacements.get(currentLabel) || [currentLabel];
+                    const items = listReplacements.get(currentLabel) || [currentLabel];
                     
                     return items.flatMap(item => {
                         const newText = text.replace(new RegExp(`{${currentLabel}}`, 'g'), item);
@@ -335,22 +374,21 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                     });
                 }
 
-                const labelsToReplace = Array.from(replacements.keys());
-                textVariations = generateCombinations(processedText, labelsToReplace);
+                const listLabels = Array.from(listReplacements.keys());
+                console.log('Generating combinations for list labels:', listLabels);
+                textVariations = generateCombinations(rawText, listLabels);
+                console.log('Generated text variations:', textVariations);
             } else {
-                // No list references - just do simple replacement
-                processedText = processedText.replace(regex, (match, label) => {
-                    const items = replacements.get(label);
-                    return items ? items[0] : match;
-                });
-                textVariations = [processedText];
+                textVariations = [rawText];
+                console.log('No list references found, using raw text');
             }
         }
 
         // Update node classes for visual feedback
         nodes.update(n => n.map(node => ({
             ...node,
-            class: node.id === sourceNode.id || node.id === targetNode.id || referencedNodes.some(rn => rn.id === node.id)
+            class: node.id === sourceNode.id || node.id === targetNode.id || 
+                   referencedNodes.some(rn => rn.id === node.id)
                 ? `${node.class || ''} processing`.trim()
                 : node.class
         })));
@@ -362,20 +400,70 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
             class: edge.id === edgeId ? 'processing-edge' : edge.class
         })));
 
-        // Delay to allow for visual update
         await new Promise(resolve => setTimeout(resolve, 100));
 
         try {
             // Process each variation
-            for (const text of textVariations) {
-                if (get(shouldStop)) break;
+            for (let i = 0; i < textVariations.length; i++) {
+                console.log(`\nProcessing variation ${i + 1}/${textVariations.length}`);
+                
+                if (get(shouldStop)) {
+                    console.log('Processing stopped by user');
+                    break;
+                }
+
+                // Process non-list references here, right before sending to LLM
+                let processedText = textVariations[i];
+                console.log('Text before reference processing:', processedText);
+                
+                const regex = /{([^}]+)}/g;
+                const matches = Array.from(processedText.matchAll(regex));
+                
+                // Get latest node states
+                const currentNodes = get(nodes);
+                const currentTargetNode = currentNodes.find(n => n.id === targetNode.id);
+                console.log('Current target node state:', {
+                    id: currentTargetNode.id,
+                    results: currentTargetNode.data.results
+                });
+                
+                for (const match of matches) {
+                    const label = match[1];
+                    const referencedNode = currentNodes.find(n => n.data.label === label);
+                    console.log(`Processing reference "${label}"`, referencedNode?.type);
+                    
+                    if (referencedNode && referencedNode.type === 'result') {
+                        let content = '';
+                        if (referencedNode.id === targetNode.id) {
+                            content = Array.isArray(currentTargetNode.data.results) && 
+                                     currentTargetNode.data.results.length > 0
+                                ? currentTargetNode.data.results.join('\n\n')
+                                : '';
+                            console.log(`Using target node's current results:`, content);
+                        } else {
+                            content = Array.isArray(referencedNode.data.results) && 
+                                     referencedNode.data.results.length > 0
+                                ? referencedNode.data.results.join('\n\n')
+                                : '';
+                            console.log(`Using referenced result node's content:`, content);
+                        }
+                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), content);
+                    } else if (referencedNode && referencedNode.type === 'text') {
+                        const content = referencedNode.data.text || '';
+                        console.log(`Using text node content:`, content);
+                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), content);
+                    }
+                }
+
+                console.log('Final processed text for LLM:', processedText);
 
                 let fullResponse = '';
                 try {
                     const response = await getLLMResponse(
-                        text,
+                        processedText,
                         (chunk) => {
                             if (get(shouldStop)) {
+                                console.log('Streaming stopped by user');
                                 throw new Error('Processing stopped by user');
                             }
                             
@@ -399,14 +487,17 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                     );
 
                     if (!get(shouldStop)) {
+                        console.log('Updating target node with new response');
                         nodes.update(n => n.map(node => {
                             if (node.id === targetNode.id) {
+                                const newResults = [...(node.data.results || []), response];
+                                console.log('Updated results array:', newResults);
                                 return {
                                     ...node,
                                     data: {
                                         ...node.data,
                                         streamingResult: null,
-                                        results: [...(node.data.results || []), response]
+                                        results: newResults
                                     }
                                 };
                             }
@@ -415,6 +506,7 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                     }
                 } catch (error) {
                     if (error.message === 'Processing stopped by user') {
+                        console.log('Handling stop request, saving partial response');
                         nodes.update(n => n.map(node => {
                             if (node.id === targetNode.id) {
                                 return {
@@ -430,11 +522,13 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                         }));
                         break;
                     } else {
+                        console.error('Error during processing:', error);
                         throw error;
                     }
                 }
             }
         } finally {
+            console.log('Cleaning up processing state');
             // Reset processing classes and animations
             nodes.update(n => n.map(node => ({
                 ...node,
@@ -447,7 +541,6 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                 class: (edge.class || '').replace('processing-edge', '').trim()
             })));
 
-            // Decrement active processes and only reset if we're the last one
             activeProcesses.update(n => {
                 const newCount = Math.max(0, n - 1);
                 if (newCount === 0) {
@@ -456,9 +549,10 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                 return newCount;
             });
         }
+    } else {
+        console.log('Invalid node configuration for processing');
     }
 }
-
 
 
 
