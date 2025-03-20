@@ -9,9 +9,9 @@
 
   const models = [
     { value: 'meta-llama/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
-    { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet' },
+    { value: 'anthropic/claude-3.7-sonnet', label: 'Claude Sonnet' },
     { value: 'openai/chatgpt-4o-latest', label: 'Chat GPT-4o' },
-    { value: 'google/gemini-pro-1.5', label: 'Google Gemini' }
+    { value: 'google/gemini-2.0-flash-001', label: 'Google Gemini' }
   ];
 
   let showKeyMessage = false;
