@@ -8,10 +8,10 @@
   const dispatch = createEventDispatcher();
 
   const models = [
-    { value: 'meta-llama/llama-3.1-405b-instruct', label: 'Llama 3.1 405B' },
-    { value: 'anthropic/claude-3.7-sonnet', label: 'Claude Sonnet' },
-    { value: 'openai/chatgpt-4o-latest', label: 'Chat GPT-4o' },
-    { value: 'google/gemini-2.0-flash-001', label: 'Google Gemini' }
+    { value: 'anthropic/claude-sonnet-4', label: 'Claude Sonnet 4' },
+    { value: 'google/gemini-2.5-pro-preview', label: 'Gemini 2.5 Pro' },
+    { value: 'openai/gpt-4.1', label: 'GPT-4.1' },
+    { value: 'deepseek/deepseek-chat-v3-0324:free', label: 'DeepSeek Chat v3' }
   ];
 
   let showKeyMessage = false;

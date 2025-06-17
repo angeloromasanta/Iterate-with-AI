@@ -33,7 +33,7 @@ export default async function handler(req) {
     return new Response("Server API key is not configured", { status: 500 });
   }
 
-  if (model !== "meta-llama/llama-3.1-405b-instruct") {
+  if (model !== "deepseek/deepseek-chat-v3-0324:free") {
     console.log("Invalid model requested");
     return new Response("Invalid model for this endpoint", { status: 400 });
   }
