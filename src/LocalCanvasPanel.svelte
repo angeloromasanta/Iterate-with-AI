@@ -114,17 +114,12 @@ async function loadCanvas(name) {
     // Wait for state to clear
     await new Promise(resolve => setTimeout(resolve, 50));
     
-    // Load nodes with cleaned size data
+    // Load nodes while preserving their stored dimensions
     const cleanedNodes = canvasData.nodes.map(node => ({
       ...node,
-      // Ensure consistent node sizing by removing any stored dimensions
-      dimension: undefined,
-      computed: undefined,
-      style: {
-        ...node.style,
-        width: undefined,
-        height: undefined
-      }
+      // Preserve stored dimensions for proper size persistence
+      width: node.width || 200,  // fallback to default if not stored
+      height: node.height || 160 // fallback to default if not stored
     }));
     
     nodes.set(cleanedNodes);
