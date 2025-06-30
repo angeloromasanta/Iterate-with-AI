@@ -447,11 +447,11 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                                 : '';
                             console.log(`Using referenced result node's content:`, content);
                         }
-                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), content);
+                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), `<${label}>${content}</${label}>`);
                     } else if (referencedNode && referencedNode.type === 'text') {
                         const content = referencedNode.data.text || '';
                         console.log(`Using text node content:`, content);
-                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), content);
+                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), `<${label}>${content}</${label}>`);
                     }
                 }
 
