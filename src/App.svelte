@@ -416,43 +416,56 @@ async function runConnectedNodes(edgeId: string, modelOverride?: string) {
                 let processedText = textVariations[i];
                 console.log('Text before reference processing:', processedText);
                 
-                const regex = /{([^}]+)}/g;
-                const matches = Array.from(processedText.matchAll(regex));
+                // Iteratively resolve references until no more remain
+                let maxIterations = 10; // Safety limit to prevent infinite loops
+                let iteration = 0;
                 
-                // Get latest node states
-                const currentNodes = get(nodes);
-                const currentTargetNode = currentNodes.find(n => n.id === targetNode.id);
-                console.log('Current target node state:', {
-                    id: currentTargetNode.id,
-                    results: currentTargetNode.data.results
-                });
-                
-                for (const match of matches) {
-                    const label = match[1];
-                    const referencedNode = currentNodes.find(n => n.data.label === label);
-                    console.log(`Processing reference "${label}"`, referencedNode?.type);
+                while (/{([^}]+)}/g.test(processedText) && iteration < maxIterations) {
+                    iteration++;
+                    console.log(`Reference resolution iteration ${iteration}`);
                     
-                    if (referencedNode && referencedNode.type === 'result') {
-                        let content = '';
-                        if (referencedNode.id === targetNode.id) {
-                            content = Array.isArray(currentTargetNode.data.results) && 
-                                     currentTargetNode.data.results.length > 0
-                                ? currentTargetNode.data.results.join('\n\n')
-                                : '';
-                            console.log(`Using target node's current results:`, content);
-                        } else {
-                            content = Array.isArray(referencedNode.data.results) && 
-                                     referencedNode.data.results.length > 0
-                                ? referencedNode.data.results.join('\n\n')
-                                : '';
-                            console.log(`Using referenced result node's content:`, content);
+                    const regex = /{([^}]+)}/g;
+                    const matches = Array.from(processedText.matchAll(regex));
+                    
+                    // Get latest node states
+                    const currentNodes = get(nodes);
+                    const currentTargetNode = currentNodes.find(n => n.id === targetNode.id);
+                    console.log('Current target node state:', {
+                        id: currentTargetNode.id,
+                        results: currentTargetNode.data.results
+                    });
+                    
+                    for (const match of matches) {
+                        const label = match[1];
+                        const referencedNode = currentNodes.find(n => n.data.label === label);
+                        console.log(`Processing reference "${label}"`, referencedNode?.type);
+                        
+                        if (referencedNode && referencedNode.type === 'result') {
+                            let content = '';
+                            if (referencedNode.id === targetNode.id) {
+                                content = Array.isArray(currentTargetNode.data.results) && 
+                                         currentTargetNode.data.results.length > 0
+                                    ? currentTargetNode.data.results.join('\n\n')
+                                    : '';
+                                console.log(`Using target node's current results:`, content);
+                            } else {
+                                content = Array.isArray(referencedNode.data.results) && 
+                                         referencedNode.data.results.length > 0
+                                    ? referencedNode.data.results.join('\n\n')
+                                    : '';
+                                console.log(`Using referenced result node's content:`, content);
+                            }
+                            processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), `<${label}>${content}</${label}>`);
+                        } else if (referencedNode && referencedNode.type === 'text') {
+                            const content = referencedNode.data.text || '';
+                            console.log(`Using text node content:`, content);
+                            processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), `<${label}>${content}</${label}>`);
                         }
-                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), `<${label}>${content}</${label}>`);
-                    } else if (referencedNode && referencedNode.type === 'text') {
-                        const content = referencedNode.data.text || '';
-                        console.log(`Using text node content:`, content);
-                        processedText = processedText.replace(new RegExp(`{${label}}`, 'g'), `<${label}>${content}</${label}>`);
                     }
+                }
+                
+                if (iteration >= maxIterations) {
+                    console.warn('Reference resolution stopped: maximum iterations reached');
                 }
 
                 console.log('Final processed text for LLM:', processedText);
